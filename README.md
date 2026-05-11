@@ -168,6 +168,15 @@ Each entry in the PDF contains:
 
 ---
 
+## 🎨 Design System
+
+See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
+
+- **iOS**: Native Liquid Glass design (iOS 26) — no custom palette, follows system design language
+- **Android**: Custom creamy diary palette defined in `DESIGN.md`, implemented via Gluestack UI v2
+
+---
+
 ## 🛠 Tech Stack
 
 ### Frontend
@@ -400,7 +409,7 @@ npx expo start
 ### App `.env` (safe — public credentials only)
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_SUPABASE_KEY=your-publishable-key
 ```
 
 ### Supabase Edge Function Secrets (server-side only)

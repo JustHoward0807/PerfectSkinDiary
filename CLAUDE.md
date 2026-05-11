@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+@DESIGN.md
+
 ## Commands
 
 ```bash
@@ -73,7 +75,7 @@ Selected entries must be sorted by `entry_date` ascending before PDF generation 
 App `.env` (safe to commit structure, not values):
 ```
 EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_SUPABASE_KEY=
 ```
 
 Edge Function secrets (Supabase dashboard only):
