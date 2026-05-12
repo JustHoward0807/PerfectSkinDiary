@@ -55,7 +55,7 @@ App (anon key) → Supabase Edge Functions → Perfect Corp / Claude APIs
 
 ### Key DB constraints
 
-- `entries` table has `UNIQUE(issue_id, entry_date)` — enforces one photo per day per issue at the DB level (the UI also disables the button, but the constraint is the safety net)
+- `entries` table has `UNIQUE(issue_id, entry_date)` — enforces one photo per day per track at the DB level (the UI also disables the button, but the constraint is the safety net)
 - `issues.goal_image_url` is written once on Day 1 and never updated — treat it as immutable
 
 ### Data flow for a new entry
@@ -87,7 +87,7 @@ ANTHROPIC_API_KEY=
 ## Database Schema
 
 ```sql
--- Issues: each tracking folder
+-- Issues (Tracks): each skin tracking folder
 CREATE TABLE issues (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID REFERENCES auth.users NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE issues (
   created_at       TIMESTAMPTZ DEFAULT now()
 );
 
--- Entries: one per day per issue
+-- Entries: one per day per track
 CREATE TABLE entries (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   issue_id        UUID REFERENCES issues NOT NULL,

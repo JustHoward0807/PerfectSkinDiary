@@ -8,7 +8,7 @@
 
 PerfectSkinDiary is a mobile app that helps users track their skin condition over time through daily photo journaling. By integrating **Perfect Corp's YouCam API** for clinical-grade skin analysis and **Claude** for human-readable interpretation, users gain meaningful, personalized insights into how their skin changes day by day — correlated with their skincare routine — and can share those records directly with their dermatologist.
 
-On Issue creation, a **Goal Image** is generated via AI Skin Simulation — a realistic visualisation of what the user's skin could look like after targeted improvement — giving every tracking journey a clear, motivating destination.
+On Track creation, a **Goal Image** is generated via AI Skin Simulation — a realistic visualisation of what the user's skin could look like after targeted improvement — giving every tracking journey a clear, motivating destination.
 
 The app also surfaces a lightweight **UV Index + SPF recommendation widget** on the home screen.
 
@@ -19,7 +19,7 @@ The app also surfaces a lightweight **UV Index + SPF recommendation widget** on 
 | Goal | Description |
 |---|---|
 | **Visualise** | Generate a realistic goal skin image on Day 1 so users know what they're working toward |
-| **Track** | Log daily skin photos per Issue and receive AI-powered analysis scores |
+| **Track** | Log daily skin photos per Track and receive AI-powered analysis scores |
 | **Correlate** | Record AM/PM skincare routines alongside each entry to identify which products are working |
 | **Compare** | Automatically compare today's results against yesterday's to surface meaningful changes |
 | **Understand** | Use Claude to translate raw API scores into plain-language insights |
@@ -30,14 +30,14 @@ The app also surfaces a lightweight **UV Index + SPF recommendation widget** on 
 
 ## ✨ Features
 
-### 📁 Issue Folders
+### 📁 Skin Tracks
 
-Users create an **Issue** to represent a tracking goal:
+Users create a **Track** to represent a tracking goal:
 - A specific skin concern: *"Chin acne cluster"*, *"Forehead wrinkles"*
 - A product trial: *"30 days on Anua Azelaic Acid"*, *"Testing new moisturiser"*
 - A general baseline: *"Monthly skin check"*
 
-Each Issue has:
+Each Track has:
 - A **locked Goal Image** generated on Day 1 (see below)
 - A chronological entry timeline (one photo per day)
 
@@ -45,7 +45,7 @@ Each Issue has:
 
 ### 🎯 Goal Image (AI Skin Simulation)
 
-When a user creates a new Issue and uploads their **first photo**, the app:
+When a user creates a new Track and uploads their **first photo**, the app:
 
 **Step 1 — User selects skin concerns to target:**
 ```
@@ -73,7 +73,7 @@ Specific concerns selected:
 ```
 
 **Step 3 — Goal Image is locked permanently.**
-The generated image is saved to Supabase Storage and attached to the Issue. It cannot be regenerated or replaced — it acts as the fixed north-star target for the entire tracking journey.
+The generated image is saved to Supabase Storage and attached to the Track. It cannot be regenerated or replaced — it acts as the fixed north-star target for the entire tracking journey.
 
 **What the API does:**
 The AI Skin Simulation API (`POST /s2s/v2.0/task/skin-simulation`) takes the Day 1 photo and renders a photorealistic version of the user's face with the selected skin concerns improved to the specified intensity level. At 0.5, results are natural and plausible rather than over-processed.
@@ -93,7 +93,7 @@ Products can be typed freely or selected from a personal product library the use
 
 ### 📸 Daily Photo Analysis
 
-- User uploads or captures a selfie within an Issue
+- User uploads or captures a selfie within a Track
 - Photo is sent to **YouCam AI Skin Analysis API (HD mode)**
 - Returns scores across 16 skin dimensions with regional breakdowns
 - Results displayed as scores + visual mask overlays
@@ -102,11 +102,11 @@ Products can be typed freely or selected from a personal product library the use
 
 | Layer | Mechanism |
 |---|---|
-| **UI** | On Issue Detail screen load, the app queries whether today already has an entry. If yes, the `[+ Add Today's Entry]` button is replaced with a disabled state: *"Already logged today — come back tomorrow"* |
+| **UI** | On Track Detail screen load, the app queries whether today already has an entry. If yes, the `[+ Add Today's Entry]` button is replaced with a disabled state: *"Already logged today — come back tomorrow"* |
 | **Database** | `UNIQUE(issue_id, entry_date)` constraint on the `entries` table hard-rejects any duplicate insert as a safety net |
 
 ```typescript
-// Run on Issue Detail screen mount
+// Run on Track Detail screen mount
 const today = new Date().toISOString().split('T')[0] // "YYYY-MM-DD"
 const { data } = await supabase
   .from('entries')
@@ -139,7 +139,7 @@ Raw YouCam scores + delta + AM/PM routine → Claude generates a 2–4 sentence 
 
 ### 📤 Export for Dermatologist
 
-Users select specific entries (e.g., Monday–Friday of week 1 + the following Thursday) and export as a **PDF** for dermatologist review.
+Users select specific entries from a Track (e.g., Monday–Friday of week 1 + the following Thursday) and export as a **PDF** for dermatologist review.
 
 **Chronological ordering is enforced regardless of selection order** — entries are always sorted by `entry_date` ascending (oldest → newest) before PDF generation. This ensures the dermatologist reads the skin progression in the correct chronological direction.
 
@@ -320,11 +320,11 @@ Tab Bar: Home | Analysis (TBD) | Settings
 
 Home Screen
 ├── UV Index Widget (top right) → SPF recommendation
-├── Issue List
-└── [+ New Issue]
+├── Track List
+└── [+ New Track]
 
-New Issue Setup (Day 1 only)
-├── Name the Issue
+New Track Setup (Day 1 only)
+├── Name the Track
 ├── Upload first selfie
 ├── Select skin concerns to target
 │   (default = all 9 concerns selected)
@@ -332,9 +332,9 @@ New Issue Setup (Day 1 only)
       Parallel API calls:
       ① AI-Skin-Analysis → baseline scores (stored in issues.baseline_scores)
       ② AI-Skin-Simulation → goal image (stored in issues.goal_image_url, locked)
-      → Issue created → navigate to Issue Detail Screen
+      → Track created → navigate to Track Detail Screen
 
-Issue Detail Screen  ← per-issue hub
+Track Detail Screen  ← per-track hub
 ├── Goal Image ↔ Day 1 Photo slider
 │     slide left  → reveals more Goal Image
 │     slide right → reveals more Day 1 photo
@@ -355,7 +355,7 @@ Add Entry Screen  ← camera / upload flow
       Upload → Edge Function → AI-Skin-Analysis
       Compute delta vs yesterday
       Edge Function → Claude (summary)
-      Store entry → navigate back to Issue Detail Screen
+      Store entry → navigate back to Track Detail Screen
 
 Entry Detail Screen  ← single day result
 ├── Original photo (that day)
@@ -364,7 +364,7 @@ Entry Detail Screen  ← single day result
 └── Claude summary
 
 Export Screen
-├── Select Issue
+├── Select Track
 ├── Multi-select entries
 └── [Export PDF] → share sheet
 ```
@@ -408,7 +408,7 @@ ANTHROPIC_API_KEY=your-claude-key
 - Goal Image gives users a concrete, photorealistic target — not just abstract scores
 - AM/PM routine correlation creates a feedback loop between products and measurable skin results
 - Export feature creates genuine clinical utility for dermatologist consultations
-- Three Perfect Corp APIs used in distinct, meaningful ways
+- Three Perfect Corp APIs used in distinct, meaningful ways across the Track lifecycle
 - Clear monetisation pathway: freemium subscriptions + skincare brand affiliate recommendations
 
 ---

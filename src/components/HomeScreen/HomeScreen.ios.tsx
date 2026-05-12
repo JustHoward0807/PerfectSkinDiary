@@ -72,7 +72,7 @@ export default function HomeScreen() {
           {({ pressed }) => (
             <View style={[styles.newIssueBtn, pressed && styles.newIssueBtnPressed]}>
               <Ionicons name="add" size={32} color="#8E8E93" />
-              <Text style={styles.newIssueText}>Start New Issue</Text>
+              <Text style={styles.newIssueText}>Start New Track</Text>
             </View>
           )}
         </Pressable>
