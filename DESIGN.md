@@ -25,12 +25,12 @@ rounded:
 
 ## Overview
 
-A warm, minimal diary aesthetic for Android (Gluestack UI v2).
+A warm, minimal diary aesthetic for Android.
 Creamy off-white backgrounds, earthy warm tones, low visual noise.
 Feels like a personal skincare journal — soft, trustworthy, uncluttered.
 
 > **iOS note:** iOS builds always use the native Liquid Glass design system (iOS 26).
-> This file only governs Android UI via Gluestack UI v2.
+> This file only governs Android UI.
 
 ---
 

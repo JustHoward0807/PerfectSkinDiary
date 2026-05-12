@@ -22,7 +22,7 @@ No lint or test scripts are configured yet.
 ### Planned stack (implement per README)
 
 - **React Native + Expo** with `expo-router` for navigation, TypeScript throughout
-- **NativeWind** for styling utilities
+- **React Native StyleSheet** for styling
 - **Supabase** — PostgreSQL DB, Storage (photos/goal images), Auth, Edge Functions (Deno) as secure API proxy
 - **Claude API** (`claude-haiku-4-5-20251001`) for plain-language skin analysis summaries
 - **Perfect Corp APIs** (proxied through Supabase Edge Functions):
@@ -35,7 +35,7 @@ No lint or test scripts are configured yet.
 Components use `.ios.tsx` / `.android.tsx` suffixes — Metro picks the correct file automatically. No `Platform.OS` checks in the component layer.
 
 - **iOS**: Liquid Glass design (iOS 26), `expo-blur` BlurView
-- **Android**: Gluestack UI v2
+- **Android**: React Native StyleSheet + DESIGN.md palette
 
 ```
 components/

@@ -173,7 +173,7 @@ Each entry in the PDF contains:
 See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 
 - **iOS**: Native Liquid Glass design (iOS 26) — no custom palette, follows system design language
-- **Android**: Custom creamy diary palette defined in `DESIGN.md`, implemented via Gluestack UI v2
+- **Android**: Custom creamy diary palette defined in `DESIGN.md`, implemented via React Native StyleSheet
 
 ---
 
@@ -187,33 +187,38 @@ See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 | Language | TypeScript |
 | Navigation | Expo Router |
 | Animation | react-native-reanimated |
-| Styling | NativeWind (shared utilities) |
+| Styling | React Native StyleSheet |
 | Camera | expo-camera |
 | Notifications | expo-notifications |
 | Location | expo-location (with manual city fallback) |
 | PDF Export | react-native-html-to-pdf |
 
-**Platform-specific UI** — components are split using `.ios.tsx` / `.android.tsx` file extensions. Metro bundler automatically selects the correct file per platform; no runtime `Platform.OS` checks needed in the component layer.
+**Platform-specific UI** — platform implementations live in dedicated `src/ios/` and `src/android/` source trees. `src/components/` holds thin bridge files (`.ios.tsx` / `.android.tsx`) that re-export from the correct platform folder — Metro dispatches automatically, no runtime `Platform.OS` checks in the component layer.
 
 | Layer | iOS | Android |
 |---|---|---|
-| Design Language | Liquid Glass (iOS 26) | Gluestack UI v2 |
+| Design Language | Liquid Glass (iOS 26) | DESIGN.md warm palette |
 | Blur / Glass | `expo-blur` BlurView | — |
-| Component Library | Custom Liquid Glass components | Gluestack UI v2 |
-| Animation | react-native-reanimated | react-native-reanimated |
+| Styling | Custom Liquid Glass components | React Native StyleSheet |
+| Background | `#F2F2F7` system gray | `#FDF8F3` warm cream |
 
-**Component file structure:**
+**Source tree layout:**
 ```
-components/
-  Card/
-    Card.ios.tsx        ← BlurView + translucent glass
-    Card.android.tsx    ← Gluestack Box
-    Card.types.ts       ← shared Props interface
-  Button/
-    Button.ios.tsx
-    Button.android.tsx
-    Button.types.ts
+src/
+  components/
+    HomeScreen/
+      HomeScreen.ios.tsx        ← iOS implementation (BlurView + Liquid Glass)
+      HomeScreen.android.tsx    ← Android implementation (warm DESIGN.md palette)
+      HomeScreen.d.ts           ← TypeScript type stub (no runtime code)
+  hooks/                        ← shared hooks
+  models/                       ← shared data models
+  utils/                        ← shared utilities
+  services/
+    supabase/
+      supabase.ts
 ```
+
+Platform implementations live directly in the component folder, selected automatically by Metro via `.ios.tsx` / `.android.tsx` file extensions. No `Platform.OS` checks needed in the component layer.
 
 ### Backend / Services
 | Layer | Technology |
