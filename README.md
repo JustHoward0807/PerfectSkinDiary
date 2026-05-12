@@ -308,53 +308,11 @@ AI-Skin-Analysis     AI-Skin-Simulation        Claude API
 
 ---
 
-## 🗄 Database Schema (Supabase / PostgreSQL)
-
-```sql
--- Issues: each tracking folder
-CREATE TABLE issues (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id          UUID REFERENCES auth.users NOT NULL,
-  title            TEXT NOT NULL,
-  description      TEXT,
-  target_concerns  JSONB NOT NULL,    -- ["wrinkle", "pores", "redness", ...]
-  goal_image_url   TEXT,              -- Supabase Storage URL — set on Day 1, locked forever
-  baseline_scores  JSONB,             -- Day 1 AI-Skin-Analysis scores
-  created_at       TIMESTAMPTZ DEFAULT now()
-);
-
--- Entries: one per day per issue
-CREATE TABLE entries (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  issue_id        UUID REFERENCES issues NOT NULL,
-  user_id         UUID REFERENCES auth.users NOT NULL,
-  entry_date      DATE NOT NULL,
-  photo_url       TEXT NOT NULL,        -- Supabase Storage URL (original photo)
-  mask_urls       JSONB,                -- YouCam mask overlay URLs per metric
-  analysis_scores JSONB NOT NULL,       -- Full YouCam HD score response
-  delta_scores    JSONB,                -- Diff vs previous entry (null on Day 1)
-  am_routine      JSONB,                -- [{ product: "Vitamin C Serum", brand: "..." }]
-  pm_routine      JSONB,                -- [{ product: "Azelaic Acid 10%", brand: "..." }]
-  llm_summary     TEXT,                 -- Claude plain-language interpretation
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(issue_id, entry_date)          -- Enforces 1 entry per day per issue
-);
-
--- Personal product library for quick routine logging
-CREATE TABLE products (
-  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id   UUID REFERENCES auth.users NOT NULL,
-  name      TEXT NOT NULL,
-  brand     TEXT,
-  category  TEXT                        -- "serum", "spf", "moisturiser", etc.
-);
-```
-
----
-
 ## 📱 App Flow
 
 ```
+Tab Bar: Home | Analysis (TBD) | Settings
+
 Home Screen
 ├── UV Index Widget (top right) → SPF recommendation
 ├── Issue List
@@ -369,29 +327,39 @@ New Issue Setup (Day 1 only)
       Parallel API calls:
       ① AI-Skin-Analysis → baseline scores (stored in issues.baseline_scores)
       ② AI-Skin-Simulation → goal image (stored in issues.goal_image_url, locked)
-      → Issue created → navigate to Issue Detail
+      → Issue created → navigate to Issue Detail Screen
 
-Issue Detail Screen
-├── [Goal Image]  ← always visible, locked, generated on Day 1
-├── Entry Timeline (photo + score summary per day)
+Issue Detail Screen  ← per-issue hub
+├── Goal Image ↔ Day 1 Photo slider
+│     slide left  → reveals more Goal Image
+│     slide right → reveals more Day 1 photo
+├── Current Streak
+├── Improvement metrics summary i.e +12% (skin progress since Day 1)
+├── AM / PM Routine
+├── Claude summary card
+├── Entry Timeline (chronological list of past entries)
+│     tap entry → Entry Detail Screen
 └── [+ Add Today's Entry]  ← disabled if already logged today
-    ├── Take / upload selfie
-    ├── Log AM Routine
-    ├── Log PM Routine
-    └── [Analyse] →
-          Upload → Edge Function → AI-Skin-Analysis
-          Compute delta vs yesterday
-          Edge Function → Claude (summary)
-          Store entry → show results
+      → opens Add Entry Screen
 
-Entry Detail Screen
-├── Original photo
+Add Entry Screen  ← camera / upload flow
+├── Take / upload selfie
+├── Log AM Routine
+├── Log PM Routine
+└── [Analyse] →
+      Upload → Edge Function → AI-Skin-Analysis
+      Compute delta vs yesterday
+      Edge Function → Claude (summary)
+      Store entry → navigate back to Issue Detail Screen
+
+Entry Detail Screen  ← single day result
+├── Original photo (that day)
 ├── Mask overlay (toggle per metric)
 ├── Score dashboard (all metrics + delta ↑↓)
-├── AM / PM routine
-└── Claude summary card
+└── Claude summary
 
 Export Screen
+├── Select Issue
 ├── Multi-select entries
 └── [Export PDF] → share sheet
 ```

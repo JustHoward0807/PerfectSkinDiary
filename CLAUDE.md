@@ -83,3 +83,45 @@ Edge Function secrets (Supabase dashboard only):
 YOUCAM_API_KEY=
 ANTHROPIC_API_KEY=
 ```
+
+## Database Schema
+
+```sql
+-- Issues: each tracking folder
+CREATE TABLE issues (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID REFERENCES auth.users NOT NULL,
+  title            TEXT NOT NULL,
+  description      TEXT,
+  target_concerns  JSONB NOT NULL,    -- ["wrinkle", "pores", "redness", ...]
+  goal_image_url   TEXT,              -- Supabase Storage URL — set on Day 1, locked forever
+  baseline_scores  JSONB,             -- Day 1 AI-Skin-Analysis scores
+  created_at       TIMESTAMPTZ DEFAULT now()
+);
+
+-- Entries: one per day per issue
+CREATE TABLE entries (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  issue_id        UUID REFERENCES issues NOT NULL,
+  user_id         UUID REFERENCES auth.users NOT NULL,
+  entry_date      DATE NOT NULL,
+  photo_url       TEXT NOT NULL,        -- Supabase Storage URL (original photo)
+  mask_urls       JSONB,                -- YouCam mask overlay URLs per metric
+  analysis_scores JSONB NOT NULL,       -- Full YouCam HD score response
+  delta_scores    JSONB,                -- Diff vs previous entry (null on Day 1)
+  am_routine      JSONB,                -- [{ product: "Vitamin C Serum", brand: "..." }]
+  pm_routine      JSONB,                -- [{ product: "Azelaic Acid 10%", brand: "..." }]
+  llm_summary     TEXT,                 -- Claude plain-language interpretation
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(issue_id, entry_date)          -- Enforces 1 entry per day per issue
+);
+
+-- Personal product library for quick routine logging
+CREATE TABLE products (
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id   UUID REFERENCES auth.users NOT NULL,
+  name      TEXT NOT NULL,
+  brand     TEXT,
+  category  TEXT                        -- "serum", "spf", "moisturiser", etc.
+);
+```
