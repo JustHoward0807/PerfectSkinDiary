@@ -69,6 +69,16 @@ export default function AddNewTrackAndroid() {
 
   const canGenerate = acknowledged && photoUri !== null;
 
+  const handleGenerate = () => {
+    const concerns = selectedConcerns.size === 0
+      ? CONCERNS.map(c => c.key)
+      : Array.from(selectedConcerns);
+    router.push({
+      pathname: '/new-issue/generating',
+      params: { photoUri: photoUri!, concerns: JSON.stringify(concerns), trackName },
+    });
+  };
+
   return (
     <View style={styles.root}>
 
@@ -177,7 +187,7 @@ export default function AddNewTrackAndroid() {
         <PrimaryButton
           label="Generate Analysis"
           icon="sparkles"
-          onPress={() => {/* navigate to analysis screen */}}
+          onPress={handleGenerate}
           disabled={!canGenerate}
         />
       </View>
