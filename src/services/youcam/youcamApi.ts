@@ -10,19 +10,31 @@ const HD_ACTIONS = [
   'hd_dark_circle', 'hd_eye_bag',
 ];
 
-// Simulation API concern keys — match the AddNewTrack UI keys directly.
-const ALL_SIM_KEYS = ['wrinkle', 'pores', 'redness', 'radiance', 'dark_circles', 'texture', 'eye_bags', 'oiliness', 'spots'];
-
 // ── Image prep ──
-// HD analysis requires short side ≥ 1080px; simulation requires ≥ 480px.
-// Always resize to 1200px wide (portrait selfie → short side = width ≥ 1080px).
+// Enforce: longest side ≤ 2048px (< 2560 API cap) AND shortest side ≥ 1080px (HD minimum).
 async function preparePhoto(uri: string): Promise<string> {
-  const result = await ImageManipulator.manipulateAsync(
+  const probe = await ImageManipulator.manipulateAsync(uri, []);
+  const { width: w, height: h } = probe;
+
+  const MAX_SIDE  = 2048;
+  const MIN_SHORT = 1080;
+  const longSide  = Math.max(w, h);
+  const shortSide = Math.min(w, h);
+
+  let scale = 1;
+  if (longSide > MAX_SIDE) {
+    scale = MAX_SIDE / longSide;       // scale down — too large
+  } else if (shortSide < MIN_SHORT) {
+    scale = MIN_SHORT / shortSide;     // scale up — too small
+  }
+
+  const targetWidth = Math.round(w * scale);
+
+  return (await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 1200 } }],
+    [{ resize: { width: targetWidth } }],
     { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG },
-  );
-  return result.uri;
+  )).uri;
 }
 
 // ── Step 1: register file with YouCam and receive a presigned S3 PUT URL + file_id ──
@@ -87,9 +99,10 @@ async function createTask(label: string, apiPath: string, body: object): Promise
 const YOUCAM_ERROR_MESSAGES: Record<string, string> = {
   error_below_min_image_size:  'Your photo resolution is too low. Please retake your selfie in better lighting or move closer to the camera.',
   error_exceed_max_image_size: 'Your photo resolution is too high. Please retake your selfie.',
+  error_invalid_params:        'Something went wrong with the request. Please try again.',
   error_src_face_too_small:    'Your face is too small in the photo. Make sure your face fills at least 60% of the frame and try again.',
-  error_src_face_out_of_bound: 'Your face is partially outside the photo. Centre your face in the frame and try again.',
-  error_lighting_dark:         'The photo is too dark. Move to a brighter area or turn on a light and retake your selfie.',
+  error_src_face_out_of_bound: 'Your face is partially outside the photo. Ensure your full face — forehead, cheeks, and chin — is visible and try again.',
+  error_lighting_dark:         'The photo is too dark. Move to a well-lit area with even lighting on your face and retake your selfie.',
 };
 
 // ── Step 4: poll GET until task_status = 'success' ──
@@ -156,9 +169,11 @@ export async function runSkinAnalysis(photoUri: string): Promise<unknown> {
   return extractScoreInfoFromZip(zipUrl);
 }
 
+const ALL_SIM_KEYS = ['acne', 'dark_circles', 'eye_bags', 'oiliness', 'pores', 'radiance', 'redness', 'spots', 'texture', 'wrinkle'];
+
 // ── Public: run skin simulation ──
-// selectedConcerns: array of AddNewTrack concern keys (e.g. ['wrinkle', 'pores'])
-// Empty array → all 9 concerns at intensity 0.5 (README default)
+// selectedConcerns: keys from AddNewTrack. Only those get intensity 0.5.
+// Empty array → all concerns at 0.5.
 export async function runSkinSimulation(photoUri: string, selectedConcerns: string[]): Promise<unknown> {
   const readyUri = await preparePhoto(photoUri);
   const localBlob = await fetch(readyUri).then(r => r.blob());
@@ -175,15 +190,14 @@ export async function runSkinSimulation(photoUri: string, selectedConcerns: stri
 
   const selectedSet = new Set(selectedConcerns);
   const hasSelection = selectedConcerns.length > 0;
-  const simulation: Record<string, number> = {};
+  const concernBody: Record<string, number> = {};
   for (const key of ALL_SIM_KEYS) {
-    const intensity = hasSelection ? (selectedSet.has(key) ? 0.5 : 0) : 0.5;
-    if (intensity > 0) simulation[key] = intensity;
+    if (!hasSelection || selectedSet.has(key)) concernBody[key] = 0.5;
   }
 
   const taskId = await createTask('simulation', '/s2s/v2.0/task/skin-simulation', {
     src_file_id: fileId,
-    simulation,
+    ...concernBody,
   });
 
   return pollTask('simulation', '/s2s/v2.0/task/skin-simulation', taskId);

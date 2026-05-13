@@ -9,15 +9,16 @@ import { IOSColors, Radius } from '../../theme';
 import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
 
 const CONCERNS = [
-  { key: 'wrinkle', label: 'Wrinkles' },
-  { key: 'pores', label: 'Pores' },
-  { key: 'redness', label: 'Redness' },
-  { key: 'radiance', label: 'Radiance' },
+  { key: 'acne',         label: 'Acne' },
   { key: 'dark_circles', label: 'Dark Circles' },
-  { key: 'texture', label: 'Texture' },
-  { key: 'eye_bags', label: 'Eye Bags' },
-  { key: 'oiliness', label: 'Oiliness' },
-  { key: 'spots', label: 'Spots' },
+  { key: 'eye_bags',     label: 'Eye Bags' },
+  { key: 'oiliness',     label: 'Oiliness' },
+  { key: 'pores',        label: 'Pores' },
+  { key: 'radiance',     label: 'Radiance' },
+  { key: 'redness',      label: 'Redness' },
+  { key: 'spots',        label: 'Spots' },
+  { key: 'texture',      label: 'Texture' },
+  { key: 'wrinkle',      label: 'Wrinkles' },
 ];
 
 export default function AddNewTrackIOS() {

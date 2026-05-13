@@ -2,17 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors, IOSColors } from '../../src/theme';
-import { runSkinAnalysis } from '../../src/services/youcam/youcamApi';
-// import { runSkinSimulation } from '../../src/services/youcam/youcamApi'; // TODO: re-enable for goal image
+import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/youcamApi';
 import { trackResultStore } from '../../src/services/trackResultStore';
 
 const STEPS = [
-  { label: 'Uploading your photo',   sub: 'Sending your selfie securely...' },
-  { label: 'Analysing your skin',    sub: 'Checking 12 skin metrics with AI...' },
-  { label: 'Preparing your results', sub: 'Almost ready!' },
+  { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
+  { label: 'Analysing your skin',       sub: 'Checking 12 skin metrics with AI...' },
+  { label: 'Generating goal image',     sub: 'Creating your personalised target...' },
+  { label: 'Preparing your results',    sub: 'Almost ready!' },
 ] as const;
 
-const PROGRESS_AT_STEP = [0.05, 0.45, 0.92];
+const PROGRESS_AT_STEP = [0.05, 0.35, 0.65, 0.92];
 
 const surface     = Platform.OS === 'ios' ? IOSColors.background : Colors.surface;
 const textPrimary = Platform.OS === 'ios' ? IOSColors.label      : Colors.onSurface;
@@ -21,9 +21,9 @@ const fillColor   = Colors.primary;
 const trackColor  = 'rgba(0,0,0,0.10)';
 
 export default function GeneratingScreen() {
-  const { photoUri, trackName } = useLocalSearchParams<{
+  const { photoUri, concerns: concernsParam, trackName } = useLocalSearchParams<{
     photoUri: string;
-    concerns: string; // kept in params for when simulation is re-enabled
+    concerns: string;
     trackName: string;
   }>();
 
@@ -35,24 +35,35 @@ export default function GeneratingScreen() {
   };
 
   useEffect(() => {
+    const concerns: string[] = concernsParam ? JSON.parse(concernsParam) : [];
+
     const run = async () => {
       try {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        const analysisPromise = runSkinAnalysis(photoUri!);
+        // Run both in parallel
+        const analysisPromise  = runSkinAnalysis(photoUri!);
+        const simulationPromise = runSkinSimulation(photoUri!, concerns);
 
         // Advance to "Analysing" after upload window (~3 s)
         await new Promise(r => setTimeout(r, 3000));
         setStepIndex(1);
         animateTo(PROGRESS_AT_STEP[1]);
 
-        const analysisResult = await analysisPromise;
-
+        // Advance to "Generating goal image" after another 4 s
+        await new Promise(r => setTimeout(r, 4000));
         setStepIndex(2);
         animateTo(PROGRESS_AT_STEP[2]);
-        console.log('Analysis result:', analysisResult);
-        trackResultStore.set(analysisResult, null, trackName ?? '');
+
+        const [analysisResult, simulationResult] = await Promise.all([
+          analysisPromise,
+          simulationPromise,
+        ]);
+
+        setStepIndex(3);
+        animateTo(PROGRESS_AT_STEP[3]);
+        trackResultStore.set(analysisResult, simulationResult, trackName ?? '');
 
         await new Promise(r => setTimeout(r, 800));
         animateTo(1.0, 300);

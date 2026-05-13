@@ -1,11 +1,12 @@
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../../src/theme';
 import { trackResultStore } from '../../../src/services/trackResultStore';
 import { PrimaryButton } from '../../../src/components/ui';
 
 export default function TrackDetailScreen() {
-  const { analysisResult, trackName } = trackResultStore.get();
+  const { analysisResult, simulationResult, trackName } = trackResultStore.get();
+  const goalImageUrl = extractGoalImageUrl(simulationResult);
 
   // score_info.json may have different shapes depending on the API version.
   // We render a readable table for any array of objects that have a numeric score field,
@@ -16,6 +17,15 @@ export default function TrackDetailScreen() {
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Track Detail</Text>
       {trackName ? <Text style={styles.trackName}>{trackName}</Text> : null}
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>GOAL IMAGE</Text>
+      {goalImageUrl ? (
+        <Image source={{ uri: goalImageUrl }} style={styles.goalImage} resizeMode="contain" />
+      ) : (
+        <Text style={styles.hint}>No goal image available.</Text>
+      )}
 
       <View style={styles.divider} />
 
@@ -42,6 +52,15 @@ export default function TrackDetailScreen() {
       <PrimaryButton label="Back to Home" onPress={() => router.replace('/')} />
     </ScrollView>
   );
+}
+
+// ── Goal image URL extractor ──
+// The simulation poll result shape varies; try common locations for the URL.
+function extractGoalImageUrl(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const url = d.url ?? (d.result as Record<string, unknown> | undefined)?.url;
+  return typeof url === 'string' ? url : null;
 }
 
 // ── Flexible score extractor ──
@@ -85,6 +104,7 @@ const styles = StyleSheet.create({
   scoreRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.outlineSubtle },
   scoreType:    { fontSize: 13, color: Colors.onSurface, fontWeight: '500', flex: 1 },
   scoreValue:   { fontSize: 13, color: Colors.onSurfaceVariant, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  goalImage:    { width: '100%', aspectRatio: 1, borderRadius: 8, backgroundColor: Colors.surfaceVariant },
   hint:         { fontSize: 13, color: Colors.onSurfaceVariant, fontStyle: 'italic' },
   raw:          { fontSize: 11, color: Colors.onSurfaceVariant, lineHeight: 17, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
 });
