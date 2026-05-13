@@ -1,4 +1,4 @@
-import * as ImageManipulator from 'expo-image-manipulator';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { unzipSync } from 'fflate';
 
 const YOUCAM_BASE = 'https://yce-api-01.makeupar.com';
@@ -13,7 +13,7 @@ const HD_ACTIONS = [
 // ── Image prep ──
 // Enforce: longest side ≤ 2048px (< 2560 API cap) AND shortest side ≥ 1080px (HD minimum).
 async function preparePhoto(uri: string): Promise<string> {
-  const probe = await ImageManipulator.manipulateAsync(uri, []);
+  const probe = await ImageManipulator.manipulate(uri).renderAsync();
   const { width: w, height: h } = probe;
 
   const MAX_SIDE  = 2048;
@@ -23,18 +23,17 @@ async function preparePhoto(uri: string): Promise<string> {
 
   let scale = 1;
   if (longSide > MAX_SIDE) {
-    scale = MAX_SIDE / longSide;       // scale down — too large
+    scale = MAX_SIDE / longSide;
   } else if (shortSide < MIN_SHORT) {
-    scale = MIN_SHORT / shortSide;     // scale up — too small
+    scale = MIN_SHORT / shortSide;
   }
 
   const targetWidth = Math.round(w * scale);
 
-  return (await ImageManipulator.manipulateAsync(
-    uri,
-    [{ resize: { width: targetWidth } }],
-    { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG },
-  )).uri;
+  const resized = await ImageManipulator.manipulate(uri)
+    .resize({ width: targetWidth })
+    .renderAsync();
+  return (await resized.saveAsync({ compress: 0.9, format: SaveFormat.JPEG })).uri;
 }
 
 // ── Step 1: register file with YouCam and receive a presigned S3 PUT URL + file_id ──

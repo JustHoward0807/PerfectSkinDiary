@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, Modal } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { ImageManipulator, FlipType, SaveFormat } from 'expo-image-manipulator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -43,7 +44,12 @@ export default function AddNewTrackAndroid() {
 
   const handleCapture = async () => {
     const result = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
-    if (result?.uri) setPreviewUri(result.uri);
+    if (!result?.uri) return;
+    const flippedRef = await ImageManipulator.manipulate(result.uri)
+      .flip(FlipType.Horizontal)
+      .renderAsync();
+    const flipped = await flippedRef.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
+    setPreviewUri(flipped.uri);
   };
 
   const handleConfirm = () => {
