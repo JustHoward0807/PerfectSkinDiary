@@ -30,20 +30,53 @@ No lint or test scripts are configured yet.
   - `AI-Skin-Simulation` — Day 1 goal image generation
   - `AI-Skin-Tone-Analysis` — onboarding Fitzpatrick type
 
+### Design tokens
+
+All colors and border radii live in **`src/theme.ts`** — the single source of truth. Import from there; never hardcode hex values or radius numbers in components.
+
+```ts
+import { Colors, IOSColors, Radius } from '../../theme';
+// Colors     → Android DESIGN.md palette
+// IOSColors  → iOS system semantics (label, background, separator…)
+// Radius     → { sm: 8, md: 16, lg: 24, full: 9999 }
+```
+
 ### Platform-specific UI split
 
 Components use `.ios.tsx` / `.android.tsx` suffixes — Metro picks the correct file automatically. No `Platform.OS` checks in the component layer.
 
 - **iOS**: Liquid Glass design (iOS 26), `expo-blur` BlurView
-- **Android**: React Native StyleSheet + DESIGN.md palette
+- **Android**: React Native StyleSheet + DESIGN.md palette (`Colors` from `src/theme.ts`)
+
+Each component folder follows this layout:
 
 ```
-components/
-  Card/
-    Card.ios.tsx
-    Card.android.tsx
-    Card.types.ts    ← shared Props interface
+ComponentName/
+  ComponentName.ios.tsx     ← iOS implementation (BlurView + IOSColors)
+  ComponentName.android.tsx ← Android implementation (Colors palette)
+  ComponentName.types.ts    ← shared Props interface
+  ComponentName.d.ts        ← TypeScript stub (no runtime code — Metro resolves the right impl)
 ```
+
+### UI primitive library
+
+Shared UI primitives live in **`src/components/ui/`** and are re-exported from `src/components/ui/index.ts`. Always use these before building ad-hoc styled elements.
+
+| Component | Purpose |
+|---|---|
+| `Header` | Screen header with back button; handles `top` safe area inset internally |
+| `PrimaryButton` | Full-width CTA; accepts `label`, `icon` (Ionicons name), `disabled` |
+| `FormInput` | Labelled text field |
+| `Chip` | Selectable tag with haptic feedback on press |
+| `SectionCard` | Container card (BlurView on iOS, `surfaceVariant` View on Android) |
+
+Import pattern:
+
+```ts
+import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
+```
+
+To add a new primitive: create the folder under `src/components/ui/`, add `.ios.tsx`, `.android.tsx`, `.types.ts`, `.d.ts`, then export from `index.ts`.
 
 ### Security model
 

@@ -1,15 +1,12 @@
 import { useState, useRef } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable,
-  TextInput, Image, Modal,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Image, Modal } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { IOSColors as C, Radius } from '../../theme';
+import { IOSColors, Radius } from '../../theme';
+import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
 
 const CONCERNS = [
   { key: 'wrinkle', label: 'Wrinkles' },
@@ -24,7 +21,7 @@ const CONCERNS = [
 ];
 
 export default function AddNewTrackIOS() {
-  const insets = useSafeAreaInsets();
+  const { bottom } = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -63,7 +60,6 @@ export default function AddNewTrackIOS() {
   };
 
   const toggleConcern = (key: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedConcerns(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -75,36 +71,22 @@ export default function AddNewTrackIOS() {
   const canGenerate = acknowledged && photoUri !== null;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
 
       {/* ── Fullscreen Camera Modal ── */}
-      <Modal
-        visible={modalOpen}
-        animationType="slide"
-        onRequestClose={handleCancel}
-      >
+      <Modal visible={modalOpen} animationType="slide" onRequestClose={handleCancel}>
         <View style={styles.modalScreen}>
-
-          {/* Camera or photo preview fills the screen */}
           {!previewUri ? (
             <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
           ) : (
             <Image source={{ uri: previewUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           )}
-
-          {/* Top bar — cancel */}
-          <View style={[styles.modalTopBar, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.modalTopBar}>
             <Pressable onPress={handleCancel} style={styles.modalIconBtn}>
               <Ionicons name="close" size={28} color="#FFFFFF" />
             </Pressable>
           </View>
-
-          {/* Bottom bar — capture or retake/confirm */}
-          <BlurView
-            intensity={60}
-            tint="dark"
-            style={[styles.modalBottomBar, { paddingBottom: insets.bottom + 24 }]}
-          >
+          <BlurView intensity={60} tint="dark" style={[styles.modalBottomBar, { paddingBottom: bottom + 24 }]}>
             {!previewUri ? (
               <Pressable style={styles.captureBtn} onPress={handleCapture}>
                 <View style={styles.captureBtnInner} />
@@ -122,18 +104,11 @@ export default function AddNewTrackIOS() {
               </View>
             )}
           </BlurView>
-
         </View>
       </Modal>
 
-      {/* ── Header — Liquid Glass ── */}
-      <BlurView intensity={80} tint="systemChromeMaterial" style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#000000" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Start New Issue</Text>
-        <View style={styles.headerSpacer} />
-      </BlurView>
+      {/* ── Header ── */}
+      <Header title="Start New Issue" onBack={() => router.back()} />
 
       {/* ── Scrollable body ── */}
       <ScrollView
@@ -142,7 +117,7 @@ export default function AddNewTrackIOS() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Camera / confirmed photo section */}
+        {/* Camera / confirmed photo */}
         <Pressable style={styles.cameraCard} onPress={openCamera}>
           {photoUri ? (
             <>
@@ -155,7 +130,7 @@ export default function AddNewTrackIOS() {
           ) : (
             <View style={styles.cameraPlaceholder}>
               <BlurView intensity={60} tint="systemThinMaterial" style={styles.cameraIconWrap}>
-                <Ionicons name="camera" size={32} color="#8E8E93" />
+                <Ionicons name="camera" size={32} color={IOSColors.secondaryLabel} />
               </BlurView>
               <Text style={styles.cameraTitle}>Tap to Take Selfie</Text>
               <Text style={styles.cameraSub}>Ensure good lighting for best analysis</Text>
@@ -163,53 +138,36 @@ export default function AddNewTrackIOS() {
           )}
         </Pressable>
 
-        {/* Skin Track Name */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Skin Track Name</Text>
-          <BlurView intensity={60} tint="systemMaterial" style={styles.inputWrap}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="e.g., Forehead Texture Trial"
-              placeholderTextColor="#8E8E93"
-              value={trackName}
-              onChangeText={setTrackName}
-            />
-          </BlurView>
-        </View>
+        {/* Track name */}
+        <FormInput
+          label="Skin Track Name"
+          value={trackName}
+          onChangeText={setTrackName}
+          placeholder="e.g., Forehead Texture Trial"
+        />
 
-        {/* Target Concerns */}
-        <BlurView intensity={60} tint="systemMaterial" style={styles.concernsSection}>
-          <Text style={styles.concernsTitle}>Target Concerns</Text>
-          <Text style={styles.concernsSub}>
+        {/* Target concerns */}
+        <SectionCard>
+          <Text style={styles.sectionTitle}>Target Concerns</Text>
+          <Text style={styles.sectionSub}>
             Select the areas you'd like our AI to focus on for your goal skin image.
           </Text>
           <View style={styles.chipWrap}>
-            {CONCERNS.map(concern => {
-              const selected = selectedConcerns.has(concern.key);
-              return (
-                <Pressable
-                  key={concern.key}
-                  style={[styles.chip, selected && styles.chipSelected]}
-                  onPress={() => toggleConcern(concern.key)}
-                >
-                  {selected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                    {concern.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {CONCERNS.map(c => (
+              <Chip
+                key={c.key}
+                label={c.label}
+                selected={selectedConcerns.has(c.key)}
+                onPress={() => toggleConcern(c.key)}
+              />
+            ))}
           </View>
-        </BlurView>
+        </SectionCard>
       </ScrollView>
 
-      {/* ── Footer — Liquid Glass ── */}
-      <BlurView
-        intensity={80}
-        tint="systemChromeMaterial"
-        style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-      >
-        <Pressable style={styles.noteRow} onPress={() => setAcknowledged(prev => !prev)}>
+      {/* ── Footer ── */}
+      <BlurView intensity={80} tint="systemChromeMaterial" style={[styles.footer, { paddingBottom: bottom + 16 }]}>
+        <Pressable style={styles.noteRow} onPress={() => setAcknowledged(p => !p)}>
           <View style={[styles.checkbox, acknowledged && styles.checkboxChecked]}>
             {acknowledged && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
           </View>
@@ -217,243 +175,53 @@ export default function AddNewTrackIOS() {
             Your initial photo serves as the permanent baseline for this issue and cannot be changed later.
           </Text>
         </Pressable>
-
-        <Pressable
-          style={[styles.generateBtn, !canGenerate && styles.generateBtnDisabled]}
-          disabled={!canGenerate}
+        <PrimaryButton
+          label="Generate Analysis"
+          icon="sparkles"
           onPress={() => {/* navigate to analysis screen */}}
-        >
-          <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-          <Text style={styles.generateBtnText}>Generate Analysis</Text>
-        </Pressable>
+          disabled={!canGenerate}
+        />
       </BlurView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.background },
+  root: { flex: 1, backgroundColor: IOSColors.background },
 
-  // ── Modal ──
+  // Modal
   modalScreen: { flex: 1, backgroundColor: '#000000' },
-  modalTopBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  modalIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  modalBottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 24,
-    overflow: 'hidden',
-  },
-  captureBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  captureBtnInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-  },
-  previewActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 12,
-  },
-  previewGhostBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
+  modalTopBar: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 56, paddingHorizontal: 16, zIndex: 10 },
+  modalIconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  modalBottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 32, paddingTop: 24, overflow: 'hidden' },
+  captureBtn: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
+  captureBtnInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFFFFF' },
+  previewActions: { flexDirection: 'row', width: '100%', gap: 12 },
+  previewGhostBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.full, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' },
   previewGhostText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  confirmBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: Radius.full,
-    backgroundColor: '#FFFFFF',
-  },
-  confirmBtnText: { color: C.label, fontSize: 15, fontWeight: '700' },
+  confirmBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.full, backgroundColor: '#FFFFFF' },
+  confirmBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
 
-  // ── Header ──
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.18)',
-    overflow: 'hidden',
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: C.label, letterSpacing: 0.35 },
-  headerSpacer: { width: 40 },
-
-  // ── Scroll ──
+  // Camera card
   scroll: { flex: 1 },
   content: { padding: 16, gap: 24, paddingBottom: 8 },
-
-  // ── Camera card ──
-  cameraCard: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(0,0,0,0.22)',
-    backgroundColor: 'rgba(0,0,0,0.04)',
-  },
-  cameraPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  cameraIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraTitle: { fontSize: 18, fontWeight: '600', color: C.label, letterSpacing: 0.35 },
-  cameraSub: { fontSize: 13, color: C.secondaryLabel },
-  changeOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    overflow: 'hidden',
-  },
+  cameraCard: { width: '100%', aspectRatio: 4 / 3, borderRadius: Radius.md, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.22)', backgroundColor: 'rgba(0,0,0,0.04)' },
+  cameraPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  cameraIconWrap: { width: 64, height: 64, borderRadius: Radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  cameraTitle: { fontSize: 18, fontWeight: '600', color: IOSColors.label, letterSpacing: 0.35 },
+  cameraSub: { fontSize: 13, color: IOSColors.secondaryLabel },
+  changeOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, overflow: 'hidden' },
   changeOverlayText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 
-  // ── Input ──
-  inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: C.label, letterSpacing: 0.1 },
-  inputWrap: {
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.18)',
-  },
-  textInput: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: C.label,
-  },
+  // Concerns content (inside SectionCard)
+  sectionTitle: { fontSize: 22, fontWeight: '700', color: IOSColors.label, letterSpacing: 0.35 },
+  sectionSub: { fontSize: 13, color: IOSColors.secondaryLabel },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
-  // ── Concerns ──
-  concernsSection: {
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.12)',
-    padding: 16,
-    gap: 10,
-  },
-  concernsTitle: { fontSize: 22, fontWeight: '700', color: C.label, letterSpacing: 0.35 },
-  concernsSub: { fontSize: 13, color: C.secondaryLabel },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-  },
-  chipSelected: { backgroundColor: C.fill, borderColor: C.fill },
-  chipText: { fontSize: 14, fontWeight: '600', color: C.tertiaryLabel },
-  chipTextSelected: { color: '#FFFFFF' },
-
-  // ── Footer ──
-  footer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(0,0,0,0.18)',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    gap: 12,
-    overflow: 'hidden',
-  },
+  // Footer
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: IOSColors.separator, paddingHorizontal: 16, paddingTop: 14, gap: 12, overflow: 'hidden' },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-    flexShrink: 0,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-  },
-  checkboxChecked: { backgroundColor: C.fill, borderColor: C.fill },
-  noteText: { flex: 1, fontSize: 12, color: C.secondaryLabel, lineHeight: 18, fontStyle: 'italic' },
-  generateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: C.fill,
-    paddingVertical: 16,
-    borderRadius: Radius.full,
-  },
-  generateBtnDisabled: { backgroundColor: 'rgba(0,0,0,0.18)' },
-  generateBtnText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.22)', alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.6)' },
+  checkboxChecked: { backgroundColor: IOSColors.fill, borderColor: IOSColors.fill },
+  noteText: { flex: 1, fontSize: 12, color: IOSColors.secondaryLabel, lineHeight: 18, fontStyle: 'italic' },
 });
