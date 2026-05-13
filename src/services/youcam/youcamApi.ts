@@ -139,6 +139,7 @@ async function extractScoreInfoFromZip(zipUrl: string): Promise<unknown> {
   if (!scoreKey) throw new Error('[analysis] score_info.json not found in ZIP');
 
   const text = new TextDecoder().decode(files[scoreKey]);
+  console.log('[analysis] score_info.json content:', text);
   return JSON.parse(text);
 }
 
@@ -202,26 +203,37 @@ export async function runSkinSimulation(photoUri: string, selectedConcerns: stri
   return pollTask('simulation', '/s2s/v2.0/task/skin-simulation', taskId);
 }
 
-// ── Public: download the simulation ZIP and return a base64 data URI for the image ──
-// The simulation result contains a `url` field pointing to a .zip on S3.
-// The ZIP contains the generated goal image (first image file inside the archive).
-export async function extractGoalImageFromZip(zipUrl: string): Promise<string> {
-  const response = await fetch(zipUrl);
-  if (!response.ok) throw new Error(`ZIP download failed: ${response.status}`);
+// ── Public: resolve the simulation result URL to a displayable image URI ──
+// The YouCam simulation API may return either:
+//   • A direct image URL (JPEG/PNG) — use it as-is; React Native Image handles HTTPS URLs.
+//   • A ZIP URL — extract the first image inside and return a base64 data URI.
+// We distinguish the two by checking the ZIP magic bytes (PK signature: 0x50 0x4B).
+export async function extractGoalImageFromZip(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Goal image fetch failed: ${response.status}`);
 
   const arrayBuffer = await response.arrayBuffer();
-  const files = unzipSync(new Uint8Array(arrayBuffer));
+  const bytes = new Uint8Array(arrayBuffer);
 
-  // Find the first image entry in the ZIP
-  const imageKey = Object.keys(files).find(k =>
-    /\.(jpg|jpeg|png)$/i.test(k)
-  );
+  // Not a ZIP — the API returned a direct image URL. Return it for Image to load directly.
+  if (bytes[0] !== 0x50 || bytes[1] !== 0x4B) {
+    return url;
+  }
+
+  // It is a ZIP — extract the first image entry.
+  const files = unzipSync(bytes);
+  const imageKey = Object.keys(files).find(k => /\.(jpg|jpeg|png)$/i.test(k));
   if (!imageKey) throw new Error('No image found inside simulation ZIP');
 
-  // Convert Uint8Array → base64 data URI
-  const bytes = files[imageKey];
+  // Convert in 8 KB chunks to avoid spreading a large Uint8Array into String.fromCharCode,
+  // which exceeds the JS engine call-stack limit for any realistically-sized image.
+  const imgBytes = files[imageKey];
   const ext = imageKey.split('.').pop()!.toLowerCase();
   const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
-  const base64 = btoa(String.fromCharCode(...bytes));
-  return `data:${mime};base64,${base64}`;
+  let binary = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < imgBytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...imgBytes.subarray(i, i + CHUNK));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
 }

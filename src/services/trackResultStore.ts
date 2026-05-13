@@ -4,19 +4,22 @@ interface Stored {
   analysisResult: unknown;
   simulationResult: unknown;
   trackName: string;
+  photoUri: string;
 }
 
 const _store: Stored = {
   analysisResult: null,
   simulationResult: null,
   trackName: '',
+  photoUri: '',
 };
 
 export const trackResultStore = {
-  set(analysis: unknown, simulation: unknown, trackName: string) {
+  set(analysis: unknown, simulation: unknown, trackName: string, photoUri: string) {
     _store.analysisResult = analysis;
     _store.simulationResult = simulation;
     _store.trackName = trackName;
+    _store.photoUri = photoUri;
   },
   get(): Stored {
     return { ..._store };
@@ -25,5 +28,6 @@ export const trackResultStore = {
     _store.analysisResult = null;
     _store.simulationResult = null;
     _store.trackName = '';
+    _store.photoUri = '';
   },
 };

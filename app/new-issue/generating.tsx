@@ -63,7 +63,7 @@ export default function GeneratingScreen() {
 
         setStepIndex(3);
         animateTo(PROGRESS_AT_STEP[3]);
-        trackResultStore.set(analysisResult, simulationResult, trackName ?? '');
+        trackResultStore.set(analysisResult, simulationResult, trackName ?? '', photoUri ?? '');
 
         await new Promise(r => setTimeout(r, 800));
         animateTo(1.0, 300);
