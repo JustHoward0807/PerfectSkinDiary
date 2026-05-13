@@ -8,17 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-const C = {
-  surface: '#FDF8F3',
-  surfaceVariant: '#F5EDE3',
-  onSurface: '#2E1F1A',
-  onSurfaceVariant: '#6B5A53',
-  outline: '#D4C4B8',
-  outlineSubtle: '#EAE0D6',
-  primary: '#7D5A4F',
-  onPrimary: '#FFFFFF',
-};
+import { Colors as C, Radius } from '../../theme';
 
 const CONCERNS = [
   { key: 'wrinkle', label: 'Wrinkles' },
@@ -292,7 +282,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.6)',
   },
@@ -304,7 +294,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     backgroundColor: '#FFFFFF',
   },
   confirmBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
@@ -337,7 +327,7 @@ const styles = StyleSheet.create({
   cameraCard: {
     width: '100%',
     aspectRatio: 4 / 3,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -353,7 +343,7 @@ const styles = StyleSheet.create({
   cameraIconWrap: {
     width: 64,
     height: 64,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     backgroundColor: C.outlineSubtle,
     alignItems: 'center',
     justifyContent: 'center',
@@ -381,7 +371,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surfaceVariant,
     borderWidth: 1,
     borderColor: C.outline,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
@@ -391,7 +381,7 @@ const styles = StyleSheet.create({
   // ── Concerns ──
   concernsSection: {
     backgroundColor: C.surfaceVariant,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: C.outline,
     padding: 16,
@@ -406,7 +396,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: C.outline,
     backgroundColor: '#FFFFFF',
@@ -446,7 +436,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: C.primary,
     paddingVertical: 16,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
   },
   generateBtnDisabled: { backgroundColor: C.outlineSubtle },
   generateBtnText: { fontSize: 16, fontWeight: '600', color: C.onPrimary },

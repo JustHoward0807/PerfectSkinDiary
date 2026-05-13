@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { IOSColors as C, Radius } from '../../theme';
 
 const CONCERNS = [
   { key: 'wrinkle', label: 'Wrinkles' },
@@ -231,7 +232,7 @@ export default function AddNewTrackIOS() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F2F2F7' },
+  root: { flex: 1, backgroundColor: C.background },
 
   // ── Modal ──
   modalScreen: { flex: 1, backgroundColor: '#000000' },
@@ -294,7 +295,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.5)',
   },
@@ -306,10 +307,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     backgroundColor: '#FFFFFF',
   },
-  confirmBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
+  confirmBtnText: { color: C.label, fontSize: 15, fontWeight: '700' },
 
   // ── Header ──
   header: {
@@ -329,7 +330,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#000000', letterSpacing: 0.35 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: C.label, letterSpacing: 0.35 },
   headerSpacer: { width: 40 },
 
   // ── Scroll ──
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
   cameraCard: {
     width: '100%',
     aspectRatio: 4 / 3,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
@@ -356,13 +357,13 @@ const styles = StyleSheet.create({
   cameraIconWrap: {
     width: 64,
     height: 64,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraTitle: { fontSize: 18, fontWeight: '600', color: '#000000', letterSpacing: 0.35 },
-  cameraSub: { fontSize: 13, color: '#8E8E93' },
+  cameraTitle: { fontSize: 18, fontWeight: '600', color: C.label, letterSpacing: 0.35 },
+  cameraSub: { fontSize: 13, color: C.secondaryLabel },
   changeOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -379,9 +380,9 @@ const styles = StyleSheet.create({
 
   // ── Input ──
   inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: '#000000', letterSpacing: 0.1 },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: C.label, letterSpacing: 0.1 },
   inputWrap: {
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0,0,0,0.18)',
@@ -390,20 +391,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#000000',
+    color: C.label,
   },
 
   // ── Concerns ──
   concernsSection: {
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0,0,0,0.12)',
     padding: 16,
     gap: 10,
   },
-  concernsTitle: { fontSize: 22, fontWeight: '700', color: '#000000', letterSpacing: 0.35 },
-  concernsSub: { fontSize: 13, color: '#8E8E93' },
+  concernsTitle: { fontSize: 22, fontWeight: '700', color: C.label, letterSpacing: 0.35 },
+  concernsSub: { fontSize: 13, color: C.secondaryLabel },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 },
   chip: {
     flexDirection: 'row',
@@ -411,13 +412,13 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0,0,0,0.22)',
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
-  chipSelected: { backgroundColor: '#1C1C1E', borderColor: '#1C1C1E' },
-  chipText: { fontSize: 14, fontWeight: '600', color: '#3C3C43' },
+  chipSelected: { backgroundColor: C.fill, borderColor: C.fill },
+  chipText: { fontSize: 14, fontWeight: '600', color: C.tertiaryLabel },
   chipTextSelected: { color: '#FFFFFF' },
 
   // ── Footer ──
@@ -442,16 +443,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
-  checkboxChecked: { backgroundColor: '#1C1C1E', borderColor: '#1C1C1E' },
-  noteText: { flex: 1, fontSize: 12, color: '#8E8E93', lineHeight: 18, fontStyle: 'italic' },
+  checkboxChecked: { backgroundColor: C.fill, borderColor: C.fill },
+  noteText: { flex: 1, fontSize: 12, color: C.secondaryLabel, lineHeight: 18, fontStyle: 'italic' },
   generateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: C.fill,
     paddingVertical: 16,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
   },
   generateBtnDisabled: { backgroundColor: 'rgba(0,0,0,0.18)' },
   generateBtnText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
