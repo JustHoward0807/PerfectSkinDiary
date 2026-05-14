@@ -327,7 +327,7 @@ New Track Setup (Day 1 only)
 ├── Name the Track
 ├── Upload first selfie
 ├── Select skin concerns to target
-│   (default = all 9 concerns selected)
+│   (default = all 10 concerns selected)
 └── [Generate Goal] →
       Parallel API calls:
       ① AI-Skin-Analysis → baseline scores (stored in issues.baseline_scores)

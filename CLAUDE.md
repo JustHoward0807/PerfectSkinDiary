@@ -78,6 +78,54 @@ import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
 
 To add a new primitive: create the folder under `src/components/ui/`, add `.ios.tsx`, `.android.tsx`, `.types.ts`, `.d.ts`, then export from `index.ts`.
 
+### trackResultStore
+
+`src/services/trackResultStore.ts` passes large API results between the generating screen and TrackDetail without URL-param serialisation. Signature:
+
+```ts
+trackResultStore.set(analysis, simulation, trackName, photoUri)
+// photoUri — local file URI of the Day 1 selfie
+```
+
+All four args are required. Reading: `trackResultStore.get()` returns `{ analysisResult, simulationResult, trackName, photoUri }`.
+
+### score_info.json shape (YouCam analysis)
+
+The YouCam HD analysis ZIP contains `score_info.json` with this shape:
+
+```json
+{
+  "all": { "score": 77.8 },
+  "hd_wrinkle": { "whole": { "raw_score": 86.7, "ui_score": 79 }, "forehead": { ... }, ... },
+  "hd_pore":    { "whole": { ... }, "forehead": { ... }, "nose": { ... }, "cheek": { ... } },
+  "hd_acne":    { "whole": { "raw_score": 64.3, "ui_score": 79 } },
+  "skin_age": 33,
+  "resize_image": { "image_name": "resize_image.jpg" }
+}
+```
+
+Use `all.score` for the overall skin score — **do not average individual metric `ui_score` values**.
+
+### extractGoalImageFromZip
+
+`extractGoalImageFromZip(url)` in `src/services/youcam/youcamApi.ts` handles two cases:
+
+- **ZIP response** (PK magic bytes `0x50 0x4B`) — extracts the first image entry and returns a base64 data URI.
+- **Direct image URL** (not a ZIP) — returns the URL as-is; React Native's `Image` loads it natively.
+
+The YouCam simulation API returns a direct image URL, not a ZIP. The analysis API returns a ZIP. Use this function for both.
+
+### Demo mode (API backdoor)
+
+To skip API calls during development, set the track name to `"demo"` (case-insensitive) and select both **Acne** and **Pores** chips before tapping Generate. This:
+
+- Skips the generating screen entirely
+- Loads `demo/skinanalysisResult.json` as the analysis result
+- Loads `demo/goal.png` as the goal image and `demo/original.png` as the Day 1 photo
+- Navigates directly to `/issue/new`
+
+Logic lives in `src/services/demoMode.ts`. Asset files are in `demo/` at the repo root.
+
 ### Security model
 
 The RN client holds only the Supabase public anon key. All calls to YouCam and Claude go through **Supabase Edge Functions** which hold secrets server-side. Never put `YOUCAM_API_KEY` or `ANTHROPIC_API_KEY` in the app bundle.
