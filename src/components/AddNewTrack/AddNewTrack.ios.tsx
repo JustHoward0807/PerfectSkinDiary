@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IOSColors, Radius } from '../../theme';
 import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
+import { isDemoMode, activateDemoMode } from '../../services/demoMode';
 
 const CONCERNS = [
   { key: 'acne',         label: 'Acne' },
@@ -78,6 +79,11 @@ export default function AddNewTrackIOS() {
   const canGenerate = acknowledged && photoUri !== null;
 
   const handleGenerate = () => {
+    if (isDemoMode(trackName, selectedConcerns)) {
+      activateDemoMode(trackName);
+      router.replace('/issue/new');
+      return;
+    }
     const concerns = selectedConcerns.size === 0
       ? CONCERNS.map(c => c.key)
       : Array.from(selectedConcerns);
