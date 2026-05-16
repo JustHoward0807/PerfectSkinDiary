@@ -177,6 +177,8 @@ CREATE TABLE issues (
   target_concerns  JSONB NOT NULL,    -- ["wrinkle", "pores", "redness", ...]
   goal_image_url   TEXT,              -- Supabase Storage URL — set on Day 1, locked forever
   baseline_scores  JSONB,             -- Day 1 AI-Skin-Analysis scores
+  am_routine       JSONB,             -- [{ product: "Vitamin C Serum", brand: "..." }]
+  pm_routine       JSONB,             -- [{ product: "Azelaic Acid 10%", brand: "..." }]
   created_at       TIMESTAMPTZ DEFAULT now()
 );
 
@@ -190,8 +192,6 @@ CREATE TABLE entries (
   mask_urls       JSONB,                -- YouCam mask overlay URLs per metric
   analysis_scores JSONB NOT NULL,       -- Full YouCam HD score response
   delta_scores    JSONB,                -- Diff vs previous entry (null on Day 1)
-  am_routine      JSONB,                -- [{ product: "Vitamin C Serum", brand: "..." }]
-  pm_routine      JSONB,                -- [{ product: "Azelaic Acid 10%", brand: "..." }]
   llm_summary     TEXT,                 -- Claude plain-language interpretation
   created_at      TIMESTAMPTZ DEFAULT now(),
   UNIQUE(issue_id, entry_date)          -- Enforces 1 entry per day per issue

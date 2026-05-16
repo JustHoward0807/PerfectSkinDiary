@@ -16,7 +16,6 @@ export type Database = {
     Tables: {
       entries: {
         Row: {
-          am_routine: Json | null
           analysis_scores: Json
           created_at: string | null
           delta_scores: Json | null
@@ -26,11 +25,9 @@ export type Database = {
           llm_summary: string | null
           mask_urls: Json | null
           photo_url: string
-          pm_routine: Json | null
           user_id: string
         }
         Insert: {
-          am_routine?: Json | null
           analysis_scores: Json
           created_at?: string | null
           delta_scores?: Json | null
@@ -40,11 +37,9 @@ export type Database = {
           llm_summary?: string | null
           mask_urls?: Json | null
           photo_url: string
-          pm_routine?: Json | null
           user_id: string
         }
         Update: {
-          am_routine?: Json | null
           analysis_scores?: Json
           created_at?: string | null
           delta_scores?: Json | null
@@ -54,7 +49,6 @@ export type Database = {
           llm_summary?: string | null
           mask_urls?: Json | null
           photo_url?: string
-          pm_routine?: Json | null
           user_id?: string
         }
         Relationships: [
@@ -69,31 +63,37 @@ export type Database = {
       }
       issues: {
         Row: {
+          am_routine: Json | null
           baseline_scores: Json | null
           created_at: string | null
           description: string | null
           goal_image_url: string | null
           id: string
+          pm_routine: Json | null
           target_concerns: Json
           title: string
           user_id: string
         }
         Insert: {
+          am_routine?: Json | null
           baseline_scores?: Json | null
           created_at?: string | null
           description?: string | null
           goal_image_url?: string | null
           id?: string
+          pm_routine?: Json | null
           target_concerns: Json
           title: string
           user_id: string
         }
         Update: {
+          am_routine?: Json | null
           baseline_scores?: Json | null
           created_at?: string | null
           description?: string | null
           goal_image_url?: string | null
           id?: string
+          pm_routine?: Json | null
           target_concerns?: Json
           title?: string
           user_id?: string
