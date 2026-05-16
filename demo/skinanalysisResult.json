@@ -1,0 +1,122 @@
+{
+  "hd_oiliness": {
+    "raw_score": 57.291786193847656,
+    "ui_score": 71,
+    "output_mask_name": "hd_oiliness_output.png"
+  },
+  "hd_redness": {
+    "raw_score": 76.95858001708984,
+    "ui_score": 79,
+    "output_mask_name": "hd_redness_output.png"
+  },
+  "hd_age_spot": {
+    "raw_score": 90.02365112304688,
+    "ui_score": 80,
+    "output_mask_name": "hd_age_spot_output.png"
+  },
+  "hd_radiance": {
+    "raw_score": 74.2335855960846,
+    "ui_score": 78,
+    "output_mask_name": "hd_radiance_output.png"
+  },
+  "hd_moisture": {
+    "raw_score": 54.454272985458374,
+    "ui_score": 72,
+    "output_mask_name": "hd_moisture_output.png"
+  },
+  "hd_eye_bag": {
+    "raw_score": 77.86927223205566,
+    "ui_score": 80,
+    "output_mask_name": "hd_eye_bag_output.png"
+  },
+  "hd_dark_circle": {
+    "raw_score": 85.5384349822998,
+    "ui_score": 78,
+    "output_mask_name": "hd_dark_circle_output.png"
+  },
+  "hd_firmness": {
+    "raw_score": 89.28717970848083,
+    "ui_score": 85,
+    "output_mask_name": "hd_firmness_output.png"
+  },
+  "hd_texture": {
+    "whole": {
+      "raw_score": 82.3921568627451,
+      "ui_score": 82,
+      "output_mask_name": "hd_texture_output.png"
+    }
+  },
+  "hd_acne": {
+    "whole": {
+      "raw_score": 64.30540466308594,
+      "ui_score": 79,
+      "output_mask_name": "hd_acne_output.png"
+    }
+  },
+  "hd_pore": {
+    "forehead": {
+      "raw_score": 36.03853225708008,
+      "ui_score": 61,
+      "output_mask_name": "hd_pore_output_forehead.png"
+    },
+    "nose": {
+      "raw_score": 65.79338073730469,
+      "ui_score": 74,
+      "output_mask_name": "hd_pore_output_nose.png"
+    },
+    "cheek": {
+      "raw_score": 65.6604995727539,
+      "ui_score": 74,
+      "output_mask_name": "hd_pore_output_cheek.png"
+    },
+    "whole": {
+      "raw_score": 58.28822708129883,
+      "ui_score": 71,
+      "output_mask_name": "hd_pore_output_all.png"
+    }
+  },
+  "hd_wrinkle": {
+    "forehead": {
+      "raw_score": 87.56652593612671,
+      "ui_score": 79,
+      "output_mask_name": "hd_wrinkle_output_forehead.png"
+    },
+    "glabellar": {
+      "raw_score": 99.0,
+      "ui_score": 97,
+      "output_mask_name": "hd_wrinkle_output_glabellar.png"
+    },
+    "crowfeet": {
+      "raw_score": 99.0,
+      "ui_score": 97,
+      "output_mask_name": "hd_wrinkle_output_crowfeet.png"
+    },
+    "periocular": {
+      "raw_score": 92.35921800136566,
+      "ui_score": 84,
+      "output_mask_name": "hd_wrinkle_output_periocular.png"
+    },
+    "nasolabial": {
+      "raw_score": 90.05469083786011,
+      "ui_score": 80,
+      "output_mask_name": "hd_wrinkle_output_nasolabial.png"
+    },
+    "marionette": {
+      "raw_score": 99.0,
+      "ui_score": 97,
+      "output_mask_name": "hd_wrinkle_output_marionette.png"
+    },
+    "whole": {
+      "raw_score": 86.75999999046326,
+      "ui_score": 79,
+      "output_mask_name": "hd_wrinkle_output_all.png"
+    }
+  },
+  "all": {
+    "score": 77.83333333333333
+  },
+  "skin_age": 33,
+  "resize_image": {
+    "image_name": "resize_image.jpg"
+  }
+}
