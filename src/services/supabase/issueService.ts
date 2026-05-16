@@ -1,4 +1,38 @@
 import { supabase } from './supabase';
+import type { Json, Tables } from '../../types/database.types';
+
+export type IssueData = Pick<Tables<'issues'>, 'id' | 'title' | 'goal_image_url' | 'target_concerns'>;
+export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores'>;
+
+export async function fetchIssue(issueId: string): Promise<IssueData> {
+  const { data, error } = await supabase
+    .from('issues')
+    .select('id, title, goal_image_url, target_concerns')
+    .eq('id', issueId)
+    .single();
+  if (error) throw new Error(`fetchIssue failed: ${error.message}`);
+  return data as IssueData;
+}
+
+export async function fetchEntries(issueId: string): Promise<EntryData[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, entry_date, photo_url, analysis_scores, delta_scores')
+    .eq('issue_id', issueId)
+    .order('entry_date', { ascending: true });
+  if (error) throw new Error(`fetchEntries failed: ${error.message}`);
+  return (data ?? []) as EntryData[];
+}
+
+export async function fetchEntry(entryId: string): Promise<EntryData> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, entry_date, photo_url, analysis_scores, delta_scores')
+    .eq('id', entryId)
+    .single();
+  if (error) throw new Error(`fetchEntry failed: ${error.message}`);
+  return data as EntryData;
+}
 
 interface CreateIssueParams {
   userId: string;
@@ -16,7 +50,7 @@ export async function createIssue(params: CreateIssueParams): Promise<string> {
       title: params.title,
       target_concerns: params.targetConcerns,
       goal_image_url: params.goalImageUrl,
-      baseline_scores: params.baselineScores,
+      baseline_scores: params.baselineScores as Json,
     })
     .select('id')
     .single();
@@ -40,7 +74,7 @@ export async function createDayOneEntry(params: CreateDayOneEntryParams): Promis
       user_id: params.userId,
       entry_date: today,
       photo_url: params.photoUrl,
-      analysis_scores: params.analysisScores,
+      analysis_scores: params.analysisScores as Json,
       delta_scores: null,
     });
   if (error) throw new Error(`createDayOneEntry failed: ${error.message}`);

@@ -9,8 +9,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IOSColors, Radius } from '../../theme';
 import { Header } from '../ui';
+import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
-import { extractGoalImageFromZip } from '../../services/youcam/youcamApi';
+import { DEMO_ISSUE_ID } from '../../services/demoMode';
+import { computeOverallScore } from '../../utils/skinScore';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -20,57 +22,57 @@ function formatDate(isoDate: string): string {
   }).toUpperCase();
 }
 
-function computeScore(data: unknown): number {
-  if (!data || typeof data !== 'object') return 0;
-  const d = data as Record<string, unknown>;
-  // Primary path: { all: { score: number } }
-  const all = d.all as Record<string, unknown> | undefined;
-  if (all && typeof all.score === 'number') return Math.round(all.score);
-  // Fallback: average of output array ui_scores
-  const output = d.output;
-  if (Array.isArray(output) && output.length > 0) {
-    const scores = output.map((e: unknown) => {
-      const entry = e as Record<string, unknown>;
-      return typeof entry.ui_score === 'number' ? entry.ui_score : 0;
-    });
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  }
-  // Last fallback: average of all numeric top-level values
-  const values = Object.values(d).filter((v): v is number => typeof v === 'number');
-  if (values.length === 0) return 0;
-  return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-}
-
 const todayIso = new Date().toISOString().split('T')[0];
 
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function TrackDetailIOS() {
+  const { id: issueId } = useLocalSearchParams<{ id: string }>();
   const { bottom } = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const { id: issueId } = useLocalSearchParams<{ id: string }>();
-  const { analysisResult, simulationResult, trackName, photoUri } = trackResultStore.get();
 
-  // ── Goal image extraction ──
-  const [goalImageUri, setGoalImageUri] = useState<string | null>(null);
-  const [goalLoading, setGoalLoading] = useState(true);
+  const [issue, setIssue] = useState<IssueData | null>(null);
+  const [entries, setEntries] = useState<EntryData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortAsc, setSortAsc] = useState(false);
 
   useEffect(() => {
+    if (!issueId) return;
+
+    // Demo mode — use local in-memory state, never touch Supabase
+    if (issueId === DEMO_ISSUE_ID) {
+      const demo = trackResultStore.getDemo();
+      if (demo) {
+        setIssue(demo.issue as IssueData);
+        setEntries(demo.entries as EntryData[]);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Use prefetched data from the generating screen if available (avoids spinner)
+    const cached = trackResultStore.consumePrefetch(issueId);
+    if (cached) {
+      setIssue(cached.issue as IssueData);
+      setEntries(cached.entries as EntryData[]);
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
-        const sim = simulationResult as Record<string, unknown> | null;
-        const zipUrl = sim?.url as string | undefined;
-        if (!zipUrl) return;
-        const uri = await extractGoalImageFromZip(zipUrl);
-        setGoalImageUri(uri);
-      } catch (e) { console.error('[TrackDetail] extractGoalImageFromZip failed:', e); }
-      finally { setGoalLoading(false); }
+        const [issueData, entriesData] = await Promise.all([
+          fetchIssue(issueId),
+          fetchEntries(issueId),
+        ]);
+        setIssue(issueData);
+        setEntries(entriesData);
+      } catch (e) { console.error('[TrackDetail] fetch failed:', e); }
+      finally { setLoading(false); }
     })();
-  }, []);
+  }, [issueId]);
 
   // ── Slider ──
-  // Two direct pixel-value Animated.Values — no interpolate() call, so no object recreation
-  // on re-renders. setValue() bypasses React reconciliation entirely → no flash.
   const estW = screenWidth - 32;
   const [containerWidth, setContainerWidth] = useState(estW);
   const ctnWidthRef = useRef(estW);
@@ -93,16 +95,31 @@ export default function TrackDetailIOS() {
     })
   ).current;
 
-  // ── Mock entries ──
-  const overallScore = computeScore(analysisResult);
-  const mockEntries = [
-    { id: '1', date: todayIso, photoUri: photoUri || null, score: overallScore, isToday: true },
-  ];
-  const alreadyLoggedToday = true;
+  // ── Derived values ──
+  const alreadyLoggedToday = entries.some(e => e.entry_date === todayIso);
+  const day1PhotoUri = entries[0]?.photo_url ?? null;
+  const goalImageUri = issue?.goal_image_url ?? null;
+
+  const day1Score = computeOverallScore(entries[0]?.analysis_scores);
+  const latestScore = computeOverallScore(entries[entries.length - 1]?.analysis_scores);
+  const scoreDelta = entries.length > 1 ? latestScore - day1Score : null;
+
+  const sortedEntries = sortAsc ? entries : [...entries].reverse();
+
+  if (loading) {
+    return (
+      <View style={styles.root}>
+        <Header title="Track Detail" onBack={() => router.replace('/')} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={IOSColors.fill} size="large" />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
-      <Header title={trackName || 'Track Detail'} onBack={() => router.replace('/')} />
+      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.replace('/')} />
 
       <ScrollView
         style={styles.scroll}
@@ -123,12 +140,7 @@ export default function TrackDetailIOS() {
           {...panResponder.panHandlers}
         >
           {/* Layer 1: Goal image (full, behind) */}
-          {goalLoading ? (
-            <View style={[StyleSheet.absoluteFill, styles.placeholderBg]}>
-              <ActivityIndicator color={IOSColors.fill} />
-              <Text style={styles.placeholderHint}>Loading goal image…</Text>
-            </View>
-          ) : goalImageUri ? (
+          {goalImageUri ? (
             <Image source={{ uri: goalImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.placeholderBg]}>
@@ -137,14 +149,14 @@ export default function TrackDetailIOS() {
             </View>
           )}
 
-          {/* Layer 2: Original image (clipped to left portion — direct pixel Animated.Value) */}
+          {/* Layer 2: Day 1 photo (clipped to left portion) */}
           <Animated.View style={{
             position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden',
             width: clipWidthAnim,
           }}>
-            {photoUri ? (
+            {day1PhotoUri ? (
               <Image
-                source={{ uri: photoUri }}
+                source={{ uri: day1PhotoUri }}
                 style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: containerWidth }}
                 resizeMode="cover"
               />
@@ -155,7 +167,7 @@ export default function TrackDetailIOS() {
             )}
           </Animated.View>
 
-          {/* Layer 3: Divider — pointerEvents="none" so touches fall through to the card's PanResponder */}
+          {/* Layer 3: Divider */}
           <Animated.View pointerEvents="none" style={[styles.divider, { left: dividerLeftAnim }]}>
             <BlurView intensity={60} tint="light" style={styles.dividerHandle}>
               <Ionicons name="code" size={14} color={IOSColors.label} />
@@ -176,52 +188,79 @@ export default function TrackDetailIOS() {
         <BlurView intensity={60} tint="systemThinMaterial" style={styles.progressCard}>
           <Text style={styles.progressLabel}>OVERALL PROGRESS</Text>
           <View style={styles.progressRight}>
-            <Ionicons name="trending-up" size={16} color={IOSColors.fill} />
-            <Text style={styles.progressValue}>+80%</Text>
+            {scoreDelta !== null ? (
+              <>
+                <Ionicons
+                  name={scoreDelta >= 0 ? 'trending-up' : 'trending-down'}
+                  size={16}
+                  color={IOSColors.fill}
+                />
+                <Text style={styles.progressValue}>
+                  {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.progressDash}>Day 1</Text>
+            )}
           </View>
         </BlurView>
 
         {/* ── Daily log ── */}
-        <Text style={styles.sectionTitle}>DAILY LOG</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>DAILY LOG</Text>
+          <Pressable
+            onPress={() => setSortAsc(p => !p)}
+            style={styles.sortBtn}
+            hitSlop={12}
+          >
+            <Ionicons
+              name={sortAsc ? 'arrow-up-outline' : 'arrow-down-outline'}
+              size={20}
+              color={IOSColors.secondaryLabel}
+            />
+          </Pressable>
+        </View>
 
         <View style={styles.timeline}>
-          {mockEntries.map((entry, index) => (
-            <View key={entry.id} style={styles.timelineRow}>
+          {sortedEntries.map((entry, index) => {
+            const isToday = entry.entry_date === todayIso;
+            const score = computeOverallScore(entry.analysis_scores);
+            return (
+              <View key={entry.id} style={styles.timelineRow}>
 
-              {/* Timeline marker column */}
-              <View style={styles.markerCol}>
-                <View style={[styles.markerLine, index === 0 && styles.markerLineHidden]} />
-                <View style={[styles.marker, entry.isToday && styles.markerActive]}>
-                  {entry.isToday ? (
-                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.markerText}>{new Date(entry.date).getDate()}</Text>
-                  )}
+                {/* Timeline marker */}
+                <View style={styles.markerCol}>
+                  <View style={[styles.markerLine, index === 0 && styles.markerLineHidden]} />
+                  <View style={[styles.marker, isToday && styles.markerActive]}>
+                    {isToday ? (
+                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.markerText}>{new Date(entry.entry_date).getDate()}</Text>
+                    )}
+                  </View>
+                  <View style={[styles.markerLine, index === sortedEntries.length - 1 && styles.markerLineHidden]} />
                 </View>
-                <View style={[styles.markerLine, index === mockEntries.length - 1 && styles.markerLineHidden]} />
+
+                {/* Entry card */}
+                <Pressable
+                  style={styles.entryCard}
+                  onPress={() => router.push(`/issue/${issueId}/entry/${entry.id}`)}
+                >
+                  <View style={styles.entryThumb}>
+                    <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} resizeMode="cover" />
+                  </View>
+                  <View style={styles.entryInfo}>
+                    <Text style={styles.entryDate}>{formatDate(entry.entry_date)}</Text>
+                    <Text style={styles.entryScore}>
+                      Overall: <Text style={styles.entryScoreNum}>{score > 0 ? score : '—'}</Text>
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={IOSColors.secondaryLabel} />
+                </Pressable>
+
               </View>
-
-              {/* Entry card */}
-              <Pressable style={styles.entryCard} onPress={() => {}}>
-                <View style={styles.entryThumb}>
-                  {entry.photoUri ? (
-                    <Image source={{ uri: entry.photoUri }} style={styles.entryThumbImg} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.entryThumbPlaceholder}>
-                      <Ionicons name="image-outline" size={22} color={IOSColors.secondaryLabel} />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.entryInfo}>
-                  <Text style={styles.entryDate}>{formatDate(entry.date)}</Text>
-                  <Text style={styles.entryScore}>
-                    Overall: <Text style={styles.entryScoreNum}>{entry.score > 0 ? entry.score : '—'}</Text>
-                  </Text>
-                </View>
-              </Pressable>
-
-            </View>
-          ))}
+            );
+          })}
         </View>
 
       </ScrollView>
@@ -233,12 +272,12 @@ export default function TrackDetailIOS() {
         onPress={() => {}}
       >
         <BlurView
-          intensity={alreadyLoggedToday ? 20 : 80}
-          tint={alreadyLoggedToday ? 'light' : 'dark'}
+          intensity={alreadyLoggedToday ? 72 : 80}
+          tint={alreadyLoggedToday ? 'systemMaterial' : 'dark'}
           style={styles.fabInner}
         >
           <Ionicons
-            name="add"
+            name={alreadyLoggedToday ? 'checkmark-circle' : 'add'}
             size={20}
             color={alreadyLoggedToday ? IOSColors.secondaryLabel : '#FFFFFF'}
           />
@@ -254,9 +293,10 @@ export default function TrackDetailIOS() {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: IOSColors.background },
-  scroll:  { flex: 1 },
-  content: { padding: 16, gap: 16 },
+  root:             { flex: 1, backgroundColor: IOSColors.background },
+  scroll:           { flex: 1 },
+  content:          { padding: 16, gap: 16 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Slider card
   sliderCard: {
@@ -352,18 +392,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: IOSColors.label,
   },
+  progressDash: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: IOSColors.secondaryLabel,
+  },
 
   // Daily log
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: IOSColors.label,
     letterSpacing: 0.35,
-    marginTop: 4,
   },
-  timeline: {
-    gap: 0,
+  sortBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  timeline: { gap: 0 },
   timelineRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -372,19 +426,14 @@ const styles = StyleSheet.create({
   },
 
   // Marker column
-  markerCol: {
-    width: 40,
-    alignItems: 'center',
-  },
+  markerCol: { width: 40, alignItems: 'center' },
   markerLine: {
     flex: 1,
     width: StyleSheet.hairlineWidth,
     backgroundColor: IOSColors.separator,
     minHeight: 8,
   },
-  markerLineHidden: {
-    backgroundColor: 'transparent',
-  },
+  markerLineHidden: { backgroundColor: 'transparent' },
   marker: {
     width: 32,
     height: 32,
@@ -426,15 +475,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.06)',
     flexShrink: 0,
   },
-  entryThumbImg: {
-    width: '100%',
-    height: '100%',
-  },
-  entryThumbPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  entryThumbImg: { width: '100%', height: '100%' },
   entryInfo: {
     flex: 1,
     justifyContent: 'space-between',
@@ -469,7 +510,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   fabDisabled: {
-    shadowOpacity: 0,
+    shadowOpacity: 0.06,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: IOSColors.separator,
   },
   fabInner: {
     flexDirection: 'row',
@@ -484,7 +527,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
-  fabTextDisabled: {
-    color: IOSColors.secondaryLabel,
-  },
+  fabTextDisabled: { color: IOSColors.secondaryLabel },
 });

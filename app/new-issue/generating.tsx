@@ -6,7 +6,7 @@ import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/yo
 import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
-import { createIssue, createDayOneEntry } from '../../src/services/supabase/issueService';
+import { createIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
 
 const STEPS = [
   { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
@@ -100,10 +100,16 @@ export default function GeneratingScreen() {
           analysisScores: analysisResult,
         });
 
+        // 5. Prefetch issue + entries so TrackDetail renders instantly (no spinner)
+        const [prefetchedIssue, prefetchedEntries] = await Promise.all([
+          fetchIssue(issueId),
+          fetchEntries(issueId),
+        ]);
+
         trackResultStore.set(analysisResult, simulationResult, trackName ?? '', photoUri ?? '');
+        trackResultStore.setPrefetch(issueId, prefetchedIssue, prefetchedEntries);
         // ────────────────────────────────────────────────────────────────────
 
-        await new Promise(r => setTimeout(r, 800));
         animateTo(1.0, 300);
         await new Promise(r => setTimeout(r, 350));
 

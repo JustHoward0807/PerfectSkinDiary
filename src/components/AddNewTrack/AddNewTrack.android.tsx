@@ -80,7 +80,7 @@ export default function AddNewTrackAndroid() {
   const handleGenerate = () => {
     if (isDemoMode(trackName, selectedConcerns)) {
       activateDemoMode(trackName);
-      router.replace('/issue/new');
+      router.replace('/issue/demo');
       return;
     }
     const concerns = selectedConcerns.size === 0
