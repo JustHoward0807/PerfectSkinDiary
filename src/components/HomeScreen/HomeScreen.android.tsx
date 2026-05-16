@@ -2,16 +2,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-const C = {
-  surface: '#FDF8F3',
-  surfaceVariant: '#F5EDE3',
-  outlineSubtle: '#EAE0D6',
-  onSurface: '#2E1F1A',
-  onSurfaceVariant: '#6B5A53',
-  outline: '#D4C4B8',
-  onPrimary: '#FFFFFF',
-};
+import { Colors as C, Radius } from '../../theme';
 
 const TRACKS = [
   { id: '1', title: 'Acne Track', description: 'Targeting breakouts on chin area', day: 14 },
@@ -71,7 +62,7 @@ export default function HomeScreen() {
         {({ pressed }) => (
           <View style={[styles.newIssueBtn, pressed && styles.newIssueBtnPressed]}>
             <Ionicons name="add" size={32} color={C.onSurfaceVariant} />
-            <Text style={styles.newIssueText}>Start New Issue</Text>
+            <Text style={styles.newIssueText}>Start New Track</Text>
           </View>
         )}
       </Pressable>
@@ -85,7 +76,7 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 30, fontWeight: '700', color: C.onSurface, lineHeight: 40 },
   uvCard: {
     backgroundColor: C.surfaceVariant,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: C.outline,
     paddingHorizontal: 16,
@@ -110,7 +101,7 @@ const styles = StyleSheet.create({
   trackList: { gap: 16 },
   trackCard: {
     backgroundColor: C.surfaceVariant,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: C.outline,
     overflow: 'hidden',
@@ -126,7 +117,7 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
     backgroundColor: C.onSurface,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -138,7 +129,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: C.outline,
-    borderRadius: 16,
+    borderRadius: Radius.md,
     paddingVertical: 24,
     alignItems: 'center',
     gap: 6,

@@ -3,6 +3,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { IOSColors as C, Radius } from '../../theme';
 
 const TRACKS = [
   { id: '1', title: 'Acne Track', description: 'Targeting breakouts on chin area', day: 14 },
@@ -72,7 +73,7 @@ export default function HomeScreen() {
           {({ pressed }) => (
             <View style={[styles.newIssueBtn, pressed && styles.newIssueBtnPressed]}>
               <Ionicons name="add" size={32} color="#8E8E93" />
-              <Text style={styles.newIssueText}>Start New Issue</Text>
+              <Text style={styles.newIssueText}>Start New Track</Text>
             </View>
           )}
         </Pressable>
@@ -82,11 +83,11 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F2F2F7' },
+  root: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 16, paddingBottom: 40, gap: 20 },
-  greeting: { fontSize: 34, fontWeight: '700', color: '#000000', letterSpacing: 0.4 },
+  greeting: { fontSize: 34, fontWeight: '700', color: C.label, letterSpacing: 0.4 },
   uvCard: {
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -105,12 +106,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  uvTitle: { fontSize: 16, fontWeight: '600', color: '#000000' },
-  uvSub: { fontSize: 13, color: '#8E8E93', marginTop: 2 },
-  sectionTitle: { fontSize: 22, fontWeight: '700', color: '#000000', letterSpacing: 0.35 },
+  uvTitle: { fontSize: 16, fontWeight: '600', color: C.label },
+  uvSub: { fontSize: 13, color: C.secondaryLabel, marginTop: 2 },
+  sectionTitle: { fontSize: 22, fontWeight: '700', color: C.label, letterSpacing: 0.35 },
   trackList: { gap: 14 },
   trackCard: {
-    borderRadius: 16,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0,0,0,0.12)',
@@ -125,24 +126,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    borderRadius: 9999,
+    borderRadius: Radius.full,
     overflow: 'hidden',
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   dayBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   trackInfo: { padding: 14 },
-  trackTitle: { fontSize: 14, fontWeight: '600', color: '#000000' },
-  trackDesc: { fontSize: 13, color: '#8E8E93', marginTop: 2 },
+  trackTitle: { fontSize: 14, fontWeight: '600', color: C.label },
+  trackDesc: { fontSize: 13, color: C.secondaryLabel, marginTop: 2 },
   newIssueBtn: {
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: 'rgba(0,0,0,0.18)',
-    borderRadius: 16,
+    borderRadius: Radius.md,
     paddingVertical: 24,
     alignItems: 'center',
     gap: 6,
   },
   newIssueBtnPressed: { backgroundColor: 'rgba(0,0,0,0.04)' },
-  newIssueText: { fontSize: 14, fontWeight: '600', color: '#8E8E93' },
+  newIssueText: { fontSize: 14, fontWeight: '600', color: C.secondaryLabel },
 });
