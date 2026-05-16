@@ -1,22 +1,25 @@
 import { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, Modal } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { ImageManipulator, FlipType, SaveFormat } from 'expo-image-manipulator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, Radius } from '../../theme';
 import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
+import { isDemoMode, activateDemoMode } from '../../services/demoMode';
 
 const CONCERNS = [
-  { key: 'wrinkle', label: 'Wrinkles' },
-  { key: 'pores', label: 'Pores' },
-  { key: 'redness', label: 'Redness' },
-  { key: 'radiance', label: 'Radiance' },
+  { key: 'acne',         label: 'Acne' },
   { key: 'dark_circles', label: 'Dark Circles' },
-  { key: 'texture', label: 'Texture' },
-  { key: 'eye_bags', label: 'Eye Bags' },
-  { key: 'oiliness', label: 'Oiliness' },
-  { key: 'spots', label: 'Spots' },
+  { key: 'eye_bags',     label: 'Eye Bags' },
+  { key: 'oiliness',     label: 'Oiliness' },
+  { key: 'pores',        label: 'Pores' },
+  { key: 'radiance',     label: 'Radiance' },
+  { key: 'redness',      label: 'Redness' },
+  { key: 'spots',        label: 'Spots' },
+  { key: 'texture',      label: 'Texture' },
+  { key: 'wrinkle',      label: 'Wrinkles' },
 ];
 
 export default function AddNewTrackAndroid() {
@@ -42,7 +45,12 @@ export default function AddNewTrackAndroid() {
 
   const handleCapture = async () => {
     const result = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
-    if (result?.uri) setPreviewUri(result.uri);
+    if (!result?.uri) return;
+    const flippedRef = await ImageManipulator.manipulate(result.uri)
+      .flip(FlipType.Horizontal)
+      .renderAsync();
+    const flipped = await flippedRef.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
+    setPreviewUri(flipped.uri);
   };
 
   const handleConfirm = () => {
@@ -68,6 +76,21 @@ export default function AddNewTrackAndroid() {
   };
 
   const canGenerate = acknowledged && photoUri !== null;
+
+  const handleGenerate = () => {
+    if (isDemoMode(trackName, selectedConcerns)) {
+      activateDemoMode(trackName);
+      router.replace('/issue/demo');
+      return;
+    }
+    const concerns = selectedConcerns.size === 0
+      ? CONCERNS.map(c => c.key)
+      : Array.from(selectedConcerns);
+    router.push({
+      pathname: '/new-issue/generating',
+      params: { photoUri: photoUri!, concerns: JSON.stringify(concerns), trackName },
+    });
+  };
 
   return (
     <View style={styles.root}>
@@ -177,7 +200,7 @@ export default function AddNewTrackAndroid() {
         <PrimaryButton
           label="Generate Analysis"
           icon="sparkles"
-          onPress={() => {/* navigate to analysis screen */}}
+          onPress={handleGenerate}
           disabled={!canGenerate}
         />
       </View>

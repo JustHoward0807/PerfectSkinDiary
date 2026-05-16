@@ -82,11 +82,11 @@ The AI Skin Simulation API (`POST /s2s/v2.0/task/skin-simulation`) takes the Day
 
 ### 🧴 AM / PM Skincare Routine Logging
 
-Each daily entry includes:
+Each **Track** has a single AM and PM routine — the products the user is running for that specific skin goal:
 - **AM Routine**: products applied in the morning (cleanser, vitamin C, SPF, etc.)
 - **PM Routine**: products applied at night (toner, actives, moisturiser, etc.)
 
-Products can be typed freely or selected from a personal product library the user builds over time. Routine data is passed to Claude alongside skin scores for contextual insights:
+Routines are set at the Track level (not per daily entry) because a skincare trial is typically consistent over time. Products are scoped to the Track they belong to. Routine data is passed to Claude alongside skin scores for contextual insights:
 > *"Your moisture improved 8 points since adding the ceramide serum to your PM routine."*
 
 ---
@@ -225,7 +225,7 @@ Platform implementations live directly in the component folder, selected automat
 |---|---|
 | Database | **Supabase** (PostgreSQL) |
 | File Storage | Supabase Storage |
-| Auth | Supabase Auth |
+| Auth | Supabase Auth (anonymous sign-in on first launch) |
 | API Proxy | **Supabase Edge Functions** (Deno) |
 | Skin Analysis | Perfect Corp `AI-Skin-Analysis` (HD) |
 | Skin Simulation | Perfect Corp `AI-Skin-Simulation` |
@@ -327,7 +327,7 @@ New Track Setup (Day 1 only)
 ├── Name the Track
 ├── Upload first selfie
 ├── Select skin concerns to target
-│   (default = all 9 concerns selected)
+│   (default = all 10 concerns selected)
 └── [Generate Goal] →
       Parallel API calls:
       ① AI-Skin-Analysis → baseline scores (stored in issues.baseline_scores)
@@ -340,17 +340,16 @@ Track Detail Screen  ← per-track hub
 │     slide right → reveals more Day 1 photo
 ├── Current Streak
 ├── Improvement metrics summary i.e +12% (skin progress since Day 1)
-├── AM / PM Routine
+├── AM / PM Routine  ← track-level, edit anytime
 ├── Claude summary card
 ├── Entry Timeline (chronological list of past entries)
+│     sort toggle (newest-first by default, tap icon to reverse)
 │     tap entry → Entry Detail Screen
 └── [+ Add Today's Entry]  ← disabled if already logged today
       → opens Add Entry Screen
 
 Add Entry Screen  ← camera / upload flow
 ├── Take / upload selfie
-├── Log AM Routine
-├── Log PM Routine
 └── [Analyse] →
       Upload → Edge Function → AI-Skin-Analysis
       Compute delta vs yesterday
