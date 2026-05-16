@@ -4,7 +4,7 @@ import {
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IOSColors, Radius } from '../../theme';
@@ -48,6 +48,7 @@ const todayIso = new Date().toISOString().split('T')[0];
 export default function TrackDetailIOS() {
   const { bottom } = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const { id: issueId } = useLocalSearchParams<{ id: string }>();
   const { analysisResult, simulationResult, trackName, photoUri } = trackResultStore.get();
 
   // ── Goal image extraction ──

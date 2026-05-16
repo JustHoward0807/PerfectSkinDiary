@@ -4,6 +4,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors, IOSColors } from '../../src/theme';
 import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/youcamApi';
 import { trackResultStore } from '../../src/services/trackResultStore';
+import { supabase } from '../../src/services/supabase/supabase';
+import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
+import { createIssue, createDayOneEntry } from '../../src/services/supabase/issueService';
 
 const STEPS = [
   { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
@@ -63,13 +66,48 @@ export default function GeneratingScreen() {
 
         setStepIndex(3);
         animateTo(PROGRESS_AT_STEP[3]);
+
+        // ── Persist to Supabase ──────────────────────────────────────────────
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const simUrl = (simulationResult as Record<string, unknown>)?.url as string | undefined;
+        if (!simUrl) throw new Error('No simulation URL returned');
+
+        // 1. Create the issue first to get a real UUID
+        const issueId = await createIssue({
+          userId: user.id,
+          title: trackName ?? '',
+          targetConcerns: concerns,
+          goalImageUrl: '',       // filled in after upload
+          baselineScores: analysisResult,
+        });
+
+        // 2. Upload both images in parallel under the real issueId path
+        const [photoUrl, goalImageUrl] = await Promise.all([
+          uploadPhoto(photoUri!, user.id, issueId),
+          uploadGoalImage(simUrl, user.id, issueId),
+        ]);
+
+        // 3. Patch the goal_image_url now that we have the real Storage URL
+        await supabase.from('issues').update({ goal_image_url: goalImageUrl }).eq('id', issueId);
+
+        // 4. Insert the Day 1 entry
+        await createDayOneEntry({
+          issueId,
+          userId: user.id,
+          photoUrl,
+          analysisScores: analysisResult,
+        });
+
         trackResultStore.set(analysisResult, simulationResult, trackName ?? '', photoUri ?? '');
+        // ────────────────────────────────────────────────────────────────────
 
         await new Promise(r => setTimeout(r, 800));
         animateTo(1.0, 300);
         await new Promise(r => setTimeout(r, 350));
 
-        router.replace('/issue/new');
+        router.replace(`/issue/${issueId}`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Something went wrong.';
         Alert.alert('Analysis failed', message, [

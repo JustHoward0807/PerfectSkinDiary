@@ -105,24 +105,32 @@ export type Database = {
           brand: string | null
           category: string | null
           id: string
+          issue_id: string
           name: string
-          user_id: string
         }
         Insert: {
           brand?: string | null
           category?: string | null
           id?: string
+          issue_id: string
           name: string
-          user_id: string
         }
         Update: {
           brand?: string | null
           category?: string | null
           id?: string
+          issue_id?: string
           name?: string
-          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

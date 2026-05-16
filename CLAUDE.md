@@ -197,10 +197,10 @@ CREATE TABLE entries (
   UNIQUE(issue_id, entry_date)          -- Enforces 1 entry per day per issue
 );
 
--- Personal product library for quick routine logging
+-- Products used for a specific issue/track
 CREATE TABLE products (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id   UUID REFERENCES auth.users NOT NULL,
+  issue_id  UUID REFERENCES issues NOT NULL,
   name      TEXT NOT NULL,
   brand     TEXT,
   category  TEXT                        -- "serum", "spf", "moisturiser", etc.

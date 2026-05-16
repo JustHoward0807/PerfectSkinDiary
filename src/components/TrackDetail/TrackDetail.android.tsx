@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, Pressable, Image,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '../../theme';
@@ -45,6 +45,7 @@ const todayIso = new Date().toISOString().split('T')[0];
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function TrackDetailAndroid() {
+  const { id: issueId } = useLocalSearchParams<{ id: string }>();
   const { bottom } = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { analysisResult, simulationResult, trackName, photoUri } = trackResultStore.get();
