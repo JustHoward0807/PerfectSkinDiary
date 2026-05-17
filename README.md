@@ -106,16 +106,12 @@ Routines are set at the Track level (not per daily entry) because a skincare tri
 | **Database** | `UNIQUE(issue_id, entry_date)` constraint on the `entries` table hard-rejects any duplicate insert as a safety net |
 
 ```typescript
-// Run on Track Detail screen mount
-const today = new Date().toISOString().split('T')[0] // "YYYY-MM-DD"
-const { data } = await supabase
-  .from('entries')
-  .select('id')
-  .eq('issue_id', issueId)
-  .eq('entry_date', today)
-  .maybeSingle()
+// Build today's date in device local time (never toISOString — that returns UTC)
+const d = new Date()
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const alreadyLoggedToday = !!data  // disables upload button if true
+// alreadyLoggedToday is derived from the entries already fetched for the Track Detail screen
+const alreadyLoggedToday = entries.some(e => e.entry_date === today)
 ```
 
 ---

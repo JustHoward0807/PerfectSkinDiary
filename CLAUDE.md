@@ -69,6 +69,7 @@ Shared UI primitives live in **`src/components/ui/`** and are re-exported from `
 | `FormInput` | Labelled text field |
 | `Chip` | Selectable tag with haptic feedback on press |
 | `SectionCard` | Container card (BlurView on iOS, `surfaceVariant` View on Android) |
+| `CameraModal` | Full-screen selfie modal (capture → preview → confirm/retake); iOS uses BlurView bottom bar, Android uses dark View; calls `onConfirm(uri)` with a horizontally-flipped JPEG URI |
 
 Import pattern:
 
@@ -105,6 +106,41 @@ The YouCam HD analysis ZIP contains `score_info.json` with this shape:
 ```
 
 Use `all.score` for the overall skin score — **do not average individual metric `ui_score` values**.
+
+### Date handling — always use device local time
+
+**Never** use `new Date().toISOString().split('T')[0]` to get today's date — `toISOString()` returns UTC, which is off by one day for US timezones (UTC-7/UTC-8) when it's past UTC midnight.
+
+```ts
+// ✅ Correct — reads device local clock
+const d = new Date();
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+```
+
+**Never** use `new Date(isoDateString)` to parse a `YYYY-MM-DD` string from the DB — JavaScript treats date-only strings as UTC midnight, which shifts the displayed date by a day in any non-UTC timezone. Use the `parseLocalDate` helper that exists in each file that needs it:
+
+```ts
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d); // local midnight, not UTC
+}
+```
+
+`TIMESTAMPTZ` strings from Supabase (e.g. `created_at`) include timezone info and are safe to pass directly to `new Date()`.
+
+### Add Today's Entry flow
+
+The FAB in TrackDetail opens `CameraModal`. On photo confirm, TrackDetail navigates to `app/issue/[id]/entry/analyzing.tsx` (passing `photoUri` as a route param). That screen runs `runSkinAnalysis` → `uploadEntryPhoto` → `createEntry`, then does `router.replace('/issue/${id}/entry/${entryId}')` so the back stack returns to TrackDetail (not the analyzing screen).
+
+`uploadEntryPhoto(localUri, userId, issueId, date)` in `storage.ts` stores to `${userId}/${issueId}/${date}.jpg` with `upsert: true` — separate from the Day 1 `uploadPhoto` path (`selfie.jpg`, `upsert: false`).
+
+`createEntry` in `issueService.ts` inserts with `delta_scores: null`; delta computation is not yet implemented.
+
+TrackDetail re-fetches entries via `useFocusEffect` (skipping the first mount to preserve the prefetch optimisation).
+
+### Back navigation from TrackDetail
+
+TrackDetail uses `router.dismissAll()` for its back button, **not** `router.back()` or `router.replace('/')`. This is intentional: the screen can be reached either directly from HomeScreen or via the generating flow (HomeScreen → AddNewTrack → Generating → replace → TrackDetail), and `dismissAll()` correctly pops everything back to the tabs root with a standard left-to-right pop animation in both cases.
 
 ### extractGoalImageFromZip
 
