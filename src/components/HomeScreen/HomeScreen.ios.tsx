@@ -34,16 +34,21 @@ function formatCreatedDate(isoDate: string | null): string {
   });
 }
 
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function getLastEntryText(entries: { entry_date: string }[]): string {
   if (entries.length === 0) return 'No entries yet';
   const latest = entries.reduce((a, b) => a.entry_date > b.entry_date ? a : b).entry_date;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const diff = Math.floor((today.getTime() - new Date(latest).getTime()) / 86_400_000);
+  const diff = Math.floor((today.getTime() - parseLocalDate(latest).getTime()) / 86_400_000);
   if (diff === 0) return 'Last entry: Today';
   if (diff === 1) return 'Last entry: Yesterday';
   if (diff < 7) return `Last entry: ${diff} days ago`;
-  return `Last entry: ${new Date(latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  return `Last entry: ${parseLocalDate(latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
 // ── Folder path ────────────────────────────────────────────────────────────

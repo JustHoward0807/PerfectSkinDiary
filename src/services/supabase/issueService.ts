@@ -75,6 +75,31 @@ export async function createIssue(params: CreateIssueParams): Promise<string> {
   return data.id;
 }
 
+interface CreateEntryParams {
+  issueId: string;
+  userId: string;
+  photoUrl: string;
+  analysisScores: unknown;
+  entryDate: string;
+}
+
+export async function createEntry(params: CreateEntryParams): Promise<string> {
+  const { data, error } = await supabase
+    .from('entries')
+    .insert({
+      issue_id: params.issueId,
+      user_id: params.userId,
+      entry_date: params.entryDate,
+      photo_url: params.photoUrl,
+      analysis_scores: params.analysisScores as Json,
+      delta_scores: null,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(`createEntry failed: ${error.message}`);
+  return data.id;
+}
+
 interface CreateDayOneEntryParams {
   issueId: string;
   userId: string;
@@ -83,7 +108,8 @@ interface CreateDayOneEntryParams {
 }
 
 export async function createDayOneEntry(params: CreateDayOneEntryParams): Promise<void> {
-  const today = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const { error } = await supabase
     .from('entries')
     .insert({
