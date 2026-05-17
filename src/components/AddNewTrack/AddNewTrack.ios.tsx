@@ -62,7 +62,7 @@ export default function AddNewTrackIOS() {
       <CameraModal
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        onConfirm={(uri) => { setPhotoUri(uri); setAcknowledged(false); }}
+        onConfirm={(uri) => { setPhotoUri(uri); setAcknowledged(false); setCameraOpen(false); }}
       />
 
       {/* ── Header ── */}
