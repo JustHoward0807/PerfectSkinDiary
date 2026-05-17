@@ -2,6 +2,23 @@ import { supabase } from './supabase';
 import type { Json, Tables } from '../../types/database.types';
 
 export type IssueData = Pick<Tables<'issues'>, 'id' | 'title' | 'goal_image_url' | 'target_concerns'>;
+export type IssueListItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  created_at: string | null;
+  entries: { entry_date: string }[];
+};
+
+export async function fetchUserIssues(userId: string): Promise<IssueListItem[]> {
+  const { data, error } = await supabase
+    .from('issues')
+    .select('id, title, description, created_at, entries(entry_date)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`fetchUserIssues failed: ${error.message}`);
+  return (data ?? []) as unknown as IssueListItem[];
+}
 export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores'>;
 
 export async function fetchIssue(issueId: string): Promise<IssueData> {
