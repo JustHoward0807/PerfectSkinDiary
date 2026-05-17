@@ -1,8 +1,23 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { unzipSync } from 'fflate';
+import { supabase } from '../supabase/supabase';
 
-const YOUCAM_BASE = 'https://yce-api-01.makeupar.com';
-const API_KEY = process.env.EXPO_PUBLIC_YOUCAM_API_KEY!;
+// Routes authenticated YouCam API calls through the youcam-proxy Edge Function
+// so the API key stays server-side. S3 uploads go directly to S3 (no key needed).
+async function youcamFetch(path: string, method: string, body?: unknown): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke('youcam-proxy', {
+    body: { path, method, body },
+  });
+  if (error) {
+    let message = 'YouCam API error. Please try again.';
+    try {
+      const errBody = await (error as { context?: Response }).context?.json?.();
+      if (typeof errBody?.error === 'string') message = errBody.error;
+    } catch { /* use default */ }
+    throw new Error(message);
+  }
+  return data;
+};
 
 const HD_ACTIONS = [
   'hd_wrinkle', 'hd_pore', 'hd_acne', 'hd_moisture', 'hd_redness',
@@ -38,30 +53,17 @@ async function preparePhoto(uri: string): Promise<string> {
 
 // ── Step 1: register file with YouCam and receive a presigned S3 PUT URL + file_id ──
 async function getPresignedUrl(
-  label: string,
+  _label: string,
   apiPath: string,
   fileName: string,
   fileSize: number,
   contentType: string,
 ): Promise<{ fileId: string; presignedUrl: string }> {
-  const res = await fetch(`${YOUCAM_BASE}${apiPath}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      files: [{ content_type: contentType, file_name: fileName, file_size: fileSize }],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`[${label}] file API error ${res.status}: ${body}`);
-  }
-  const json = await res.json();
+  const json = await youcamFetch(apiPath, 'POST', {
+    files: [{ content_type: contentType, file_name: fileName, file_size: fileSize }],
+  }) as { data: { files: { file_id: string; requests: { url: string }[] }[] } };
   const file = json.data.files[0];
-  const request = file.requests[0];
-  return { fileId: file.file_id, presignedUrl: request.url };
+  return { fileId: file.file_id, presignedUrl: file.requests[0].url };
 }
 
 // ── Step 2: upload binary image to the S3 presigned URL ──
@@ -78,21 +80,9 @@ async function uploadToS3(presignedUrl: string, blob: Blob): Promise<void> {
 }
 
 // ── Step 3: create an analysis/simulation task ──
-async function createTask(label: string, apiPath: string, body: object): Promise<string> {
-  const res = await fetch(`${YOUCAM_BASE}${apiPath}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`[${label}] task creation error ${res.status}: ${text}`);
-  }
-  const json = await res.json();
-  return json.data.task_id as string;
+async function createTask(_label: string, apiPath: string, body: object): Promise<string> {
+  const json = await youcamFetch(apiPath, 'POST', body) as { data: { task_id: string } };
+  return json.data.task_id;
 }
 
 const YOUCAM_ERROR_MESSAGES: Record<string, string> = {
@@ -105,14 +95,10 @@ const YOUCAM_ERROR_MESSAGES: Record<string, string> = {
 };
 
 // ── Step 4: poll GET until task_status = 'success' ──
-async function pollTask(label: string, apiPath: string, taskId: string, maxAttempts = 40): Promise<unknown> {
+async function pollTask(_label: string, apiPath: string, taskId: string, maxAttempts = 40): Promise<unknown> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, 2000));
-    const res = await fetch(`${YOUCAM_BASE}${apiPath}/${taskId}`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-    });
-    if (!res.ok) throw new Error(`[${label}] poll error ${res.status}`);
-    const json = await res.json();
+    const json = await youcamFetch(`${apiPath}/${taskId}`, 'GET') as { data: { task_status: string; error?: string; results?: unknown; result?: unknown } };
     const { task_status, error: errorCode } = json.data;
     if (task_status === 'success') {
       return json.data.results ?? json.data.result ?? json.data;

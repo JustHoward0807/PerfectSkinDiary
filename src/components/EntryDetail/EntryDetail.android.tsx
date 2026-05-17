@@ -156,6 +156,14 @@ export default function EntryDetailAndroid() {
           })}
         </View>
 
+        {/* ── AI Insights ── */}
+        {entry.llm_summary ? (
+          <View style={styles.insightsCard}>
+            <Text style={styles.cardTitle}>AI INSIGHTS</Text>
+            <Text style={styles.insightsText}>{entry.llm_summary}</Text>
+          </View>
+        ) : null}
+
       </ScrollView>
     </View>
   );
@@ -236,6 +244,21 @@ const styles = StyleSheet.create({
     borderColor: Colors.outline,
     padding: 16,
     gap: 2,
+  },
+
+  // AI Insights card
+  insightsCard: {
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    padding: 16,
+    gap: 8,
+  },
+  insightsText: {
+    fontSize: 14,
+    color: Colors.onSurface,
+    lineHeight: 21,
   },
 
   // Metric rows

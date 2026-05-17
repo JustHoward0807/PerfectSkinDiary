@@ -161,6 +161,14 @@ export default function EntryDetailIOS() {
           })}
         </BlurView>
 
+        {/* ── AI Insights ── */}
+        {entry.llm_summary ? (
+          <BlurView intensity={50} tint="systemUltraThinMaterial" style={styles.insightsCard}>
+            <Text style={styles.cardTitle}>AI INSIGHTS</Text>
+            <Text style={styles.insightsText}>{entry.llm_summary}</Text>
+          </BlurView>
+        ) : null}
+
       </ScrollView>
     </View>
   );
@@ -240,6 +248,21 @@ const styles = StyleSheet.create({
     borderColor: IOSColors.subtleSeparator,
     padding: 16,
     gap: 2,
+  },
+
+  // AI Insights card
+  insightsCard: {
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: IOSColors.subtleSeparator,
+    padding: 16,
+    gap: 8,
+  },
+  insightsText: {
+    fontSize: 14,
+    color: IOSColors.label,
+    lineHeight: 21,
   },
 
   // Metric rows
