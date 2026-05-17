@@ -1,13 +1,11 @@
-import { useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image, Modal } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { ImageManipulator, FlipType, SaveFormat } from 'expo-image-manipulator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IOSColors, Radius } from '../../theme';
-import { Header, FormInput, Chip, SectionCard, PrimaryButton } from '../ui';
+import { Header, FormInput, Chip, SectionCard, PrimaryButton, CameraModal } from '../ui';
 import { isDemoMode, activateDemoMode } from '../../services/demoMode';
 
 const CONCERNS = [
@@ -25,47 +23,12 @@ const CONCERNS = [
 
 export default function AddNewTrackIOS() {
   const { bottom } = useSafeAreaInsets();
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [trackName, setTrackName] = useState('');
   const [selectedConcerns, setSelectedConcerns] = useState<Set<string>>(new Set());
   const [acknowledged, setAcknowledged] = useState(false);
-
-  const openCamera = async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) return;
-    }
-    setPreviewUri(null);
-    setModalOpen(true);
-  };
-
-  const handleCapture = async () => {
-    const result = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
-    if (!result?.uri) return;
-    const flippedRef = await ImageManipulator.manipulate(result.uri)
-      .flip(FlipType.Horizontal)
-      .renderAsync();
-    const flipped = await flippedRef.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
-    setPreviewUri(flipped.uri);
-  };
-
-  const handleConfirm = () => {
-    setPhotoUri(previewUri);
-    setAcknowledged(false);
-    setModalOpen(false);
-  };
-
-  const handleRetake = () => setPreviewUri(null);
-
-  const handleCancel = () => {
-    setPreviewUri(null);
-    setModalOpen(false);
-  };
 
   const toggleConcern = (key: string) => {
     setSelectedConcerns(prev => {
@@ -96,39 +59,11 @@ export default function AddNewTrackIOS() {
   return (
     <View style={styles.root}>
 
-      {/* ── Fullscreen Camera Modal ── */}
-      <Modal visible={modalOpen} animationType="slide" onRequestClose={handleCancel}>
-        <View style={styles.modalScreen}>
-          {!previewUri ? (
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
-          ) : (
-            <Image source={{ uri: previewUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          )}
-          <View style={styles.modalTopBar}>
-            <Pressable onPress={handleCancel} style={styles.modalIconBtn}>
-              <Ionicons name="close" size={28} color="#FFFFFF" />
-            </Pressable>
-          </View>
-          <BlurView intensity={60} tint="dark" style={[styles.modalBottomBar, { paddingBottom: bottom + 24 }]}>
-            {!previewUri ? (
-              <Pressable style={styles.captureBtn} onPress={handleCapture}>
-                <View style={styles.captureBtnInner} />
-              </Pressable>
-            ) : (
-              <View style={styles.previewActions}>
-                <Pressable style={styles.previewGhostBtn} onPress={handleRetake}>
-                  <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.previewGhostText}>Retake</Text>
-                </Pressable>
-                <Pressable style={styles.confirmBtn} onPress={handleConfirm}>
-                  <Ionicons name="checkmark" size={20} color="#000000" />
-                  <Text style={styles.confirmBtnText}>Use Photo</Text>
-                </Pressable>
-              </View>
-            )}
-          </BlurView>
-        </View>
-      </Modal>
+      <CameraModal
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onConfirm={(uri) => { setPhotoUri(uri); setAcknowledged(false); }}
+      />
 
       {/* ── Header ── */}
       <Header title="Start New Issue" onBack={() => router.back()} />
@@ -141,7 +76,7 @@ export default function AddNewTrackIOS() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Camera / confirmed photo */}
-        <Pressable style={styles.cameraCard} onPress={openCamera}>
+        <Pressable style={styles.cameraCard} onPress={() => setCameraOpen(true)}>
           {photoUri ? (
             <>
               <Image source={{ uri: photoUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -211,19 +146,6 @@ export default function AddNewTrackIOS() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: IOSColors.background },
-
-  // Modal
-  modalScreen: { flex: 1, backgroundColor: '#000000' },
-  modalTopBar: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 56, paddingHorizontal: 16, zIndex: 10 },
-  modalIconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  modalBottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 32, paddingTop: 24, overflow: 'hidden' },
-  captureBtn: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
-  captureBtnInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFFFFF' },
-  previewActions: { flexDirection: 'row', width: '100%', gap: 12 },
-  previewGhostBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.full, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)' },
-  previewGhostText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  confirmBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.full, backgroundColor: '#FFFFFF' },
-  confirmBtnText: { color: '#000000', fontSize: 15, fontWeight: '700' },
 
   // Camera card
   scroll: { flex: 1 },

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable, Image,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IOSColors, Radius } from '../../theme';
-import { Header } from '../ui';
+import { IOSColors, Colors, Radius } from '../../theme';
+import { Header, CameraModal } from '../ui';
 import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
@@ -16,13 +16,23 @@ import { computeOverallScore } from '../../utils/skinScore';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Parse YYYY-MM-DD date strings in local time (not UTC)
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', {
+  return parseLocalDate(isoDate).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   }).toUpperCase();
 }
 
-const todayIso = new Date().toISOString().split('T')[0];
+function localDateIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const todayIso = localDateIso();
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -35,6 +45,8 @@ export default function TrackDetailIOS() {
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const isFirstMount = useRef(true);
 
   useEffect(() => {
     if (!issueId) return;
@@ -71,6 +83,15 @@ export default function TrackDetailIOS() {
       finally { setLoading(false); }
     })();
   }, [issueId]);
+
+  // Re-fetch entries whenever this screen comes back into focus (e.g. after adding an entry)
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) { isFirstMount.current = false; return; }
+      if (!issueId || issueId === DEMO_ISSUE_ID) return;
+      fetchEntries(issueId).then(setEntries).catch(console.error);
+    }, [issueId])
+  );
 
   // ── Slider ──
   const estW = screenWidth - 32;
@@ -109,7 +130,7 @@ export default function TrackDetailIOS() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Track Detail" onBack={() => router.replace('/')} />
+        <Header title="Track Detail" onBack={() => router.dismissAll()} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={IOSColors.fill} size="large" />
         </View>
@@ -119,7 +140,16 @@ export default function TrackDetailIOS() {
 
   return (
     <View style={styles.root}>
-      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.replace('/')} />
+      <CameraModal
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onConfirm={(uri) => {
+          setCameraOpen(false);
+          router.push({ pathname: '/issue/[id]/entry/analyzing', params: { id: issueId!, photoUri: uri } });
+        }}
+      />
+
+      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} />
 
       <ScrollView
         style={styles.scroll}
@@ -235,7 +265,7 @@ export default function TrackDetailIOS() {
                     {isToday ? (
                       <Ionicons name="checkmark" size={12} color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.markerText}>{new Date(entry.entry_date).getDate()}</Text>
+                      <Text style={styles.markerText}>{parseLocalDate(entry.entry_date).getDate()}</Text>
                     )}
                   </View>
                   <View style={[styles.markerLine, index === sortedEntries.length - 1 && styles.markerLineHidden]} />
@@ -269,22 +299,19 @@ export default function TrackDetailIOS() {
       <Pressable
         style={[styles.fab, { bottom: bottom + 24 }, alreadyLoggedToday && styles.fabDisabled]}
         disabled={alreadyLoggedToday}
-        onPress={() => {}}
+        onPress={() => setCameraOpen(true)}
       >
-        <BlurView
-          intensity={alreadyLoggedToday ? 72 : 80}
-          tint={alreadyLoggedToday ? 'systemMaterial' : 'dark'}
-          style={styles.fabInner}
-        >
-          <Ionicons
-            name={alreadyLoggedToday ? 'checkmark-circle' : 'add'}
-            size={20}
-            color={alreadyLoggedToday ? IOSColors.secondaryLabel : '#FFFFFF'}
-          />
-          <Text style={[styles.fabText, alreadyLoggedToday && styles.fabTextDisabled]}>
-            {alreadyLoggedToday ? 'Logged Today' : "Add Today's Entry"}
-          </Text>
-        </BlurView>
+        {alreadyLoggedToday ? (
+          <BlurView intensity={72} tint="systemMaterial" style={styles.fabInner}>
+            <Ionicons name="checkmark-circle" size={20} color={IOSColors.secondaryLabel} />
+            <Text style={[styles.fabText, styles.fabTextDisabled]}>Logged Today</Text>
+          </BlurView>
+        ) : (
+          <View style={[styles.fabInner, styles.fabActive]}>
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.fabText}>Add Today's Entry</Text>
+          </View>
+        )}
       </Pressable>
     </View>
   );
@@ -504,13 +531,13 @@ const styles = StyleSheet.create({
     right: 16,
     borderRadius: Radius.full,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
   fabDisabled: {
-    shadowOpacity: 0.06,
+    shadowOpacity: 0,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: IOSColors.separator,
   },
@@ -520,6 +547,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 16,
+  },
+  fabActive: {
+    backgroundColor: Colors.primary,
   },
   fabText: {
     fontSize: 15,

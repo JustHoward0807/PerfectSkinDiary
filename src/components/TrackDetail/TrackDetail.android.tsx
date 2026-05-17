@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable, Image,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '../../theme';
-import { Header } from '../ui';
+import { Header, CameraModal } from '../ui';
 import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
@@ -15,13 +15,23 @@ import { computeOverallScore } from '../../utils/skinScore';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Parse YYYY-MM-DD date strings in local time (not UTC)
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', {
+  return parseLocalDate(isoDate).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   }).toUpperCase();
 }
 
-const todayIso = new Date().toISOString().split('T')[0];
+function localDateIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const todayIso = localDateIso();
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -34,6 +44,8 @@ export default function TrackDetailAndroid() {
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const isFirstMount = useRef(true);
 
   useEffect(() => {
     if (!issueId) return;
@@ -70,6 +82,14 @@ export default function TrackDetailAndroid() {
       finally { setLoading(false); }
     })();
   }, [issueId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) { isFirstMount.current = false; return; }
+      if (!issueId || issueId === DEMO_ISSUE_ID) return;
+      fetchEntries(issueId).then(setEntries).catch(console.error);
+    }, [issueId])
+  );
 
   // ── Slider ──
   const estW = screenWidth - 32;
@@ -108,7 +128,7 @@ export default function TrackDetailAndroid() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Track Detail" onBack={() => router.replace('/')} />
+        <Header title="Track Detail" onBack={() => router.dismissAll()} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Colors.primary} size="large" />
         </View>
@@ -118,7 +138,16 @@ export default function TrackDetailAndroid() {
 
   return (
     <View style={styles.root}>
-      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.replace('/')} />
+      <CameraModal
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onConfirm={(uri) => {
+          setCameraOpen(false);
+          router.push({ pathname: '/issue/[id]/entry/analyzing', params: { id: issueId!, photoUri: uri } });
+        }}
+      />
+
+      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} />
 
       <ScrollView
         style={styles.scroll}
@@ -234,7 +263,7 @@ export default function TrackDetailAndroid() {
                     {isToday ? (
                       <Ionicons name="checkmark" size={12} color={Colors.onPrimary} />
                     ) : (
-                      <Text style={styles.markerText}>{new Date(entry.entry_date).getDate()}</Text>
+                      <Text style={styles.markerText}>{parseLocalDate(entry.entry_date).getDate()}</Text>
                     )}
                   </View>
                   <View style={[styles.markerLine, index === sortedEntries.length - 1 && styles.markerLineHidden]} />
@@ -268,7 +297,7 @@ export default function TrackDetailAndroid() {
       <Pressable
         style={[styles.fab, { bottom: bottom + 24 }, alreadyLoggedToday && styles.fabDisabled]}
         disabled={alreadyLoggedToday}
-        onPress={() => {}}
+        onPress={() => setCameraOpen(true)}
       >
         <Ionicons name="add" size={20} color={alreadyLoggedToday ? Colors.onSurfaceVariant : Colors.onPrimary} />
         <Text style={[styles.fabText, alreadyLoggedToday && styles.fabTextDisabled]}>
