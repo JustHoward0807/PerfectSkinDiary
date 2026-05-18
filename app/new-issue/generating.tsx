@@ -12,10 +12,11 @@ const STEPS = [
   { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
   { label: 'Analysing your skin',       sub: 'Checking 12 skin metrics with AI...' },
   { label: 'Generating goal image',     sub: 'Creating your personalised target...' },
+  { label: 'Generating insights',       sub: 'Interpreting your skin scores...' },
   { label: 'Preparing your results',    sub: 'Almost ready!' },
 ] as const;
 
-const PROGRESS_AT_STEP = [0.05, 0.35, 0.65, 0.92];
+const PROGRESS_AT_STEP = [0.05, 0.30, 0.55, 0.75, 0.92];
 
 const surface     = Platform.OS === 'ios' ? IOSColors.background : Colors.surface;
 const textPrimary = Platform.OS === 'ios' ? IOSColors.label      : Colors.onSurface;
@@ -64,8 +65,20 @@ export default function GeneratingScreen() {
           simulationPromise,
         ]);
 
+        // Step 3 — Claude insights (no products on Day 1)
         setStepIndex(3);
         animateTo(PROGRESS_AT_STEP[3]);
+
+        let llmSummary: string | null = null;
+        try {
+          const { data } = await supabase.functions.invoke('interpret', {
+            body: { scores: analysisResult, products: [] },
+          });
+          llmSummary = (data as { summary?: string } | null)?.summary ?? null;
+        } catch { /* non-fatal — proceed without summary */ }
+
+        setStepIndex(4);
+        animateTo(PROGRESS_AT_STEP[4]);
 
         // ── Persist to Supabase ──────────────────────────────────────────────
         const { data: { user } } = await supabase.auth.getUser();
@@ -83,7 +96,7 @@ export default function GeneratingScreen() {
           baselineScores: analysisResult,
         });
 
-        // 2. Upload both images in parallel under the real issueId path
+        // 2. Upload both images in parallel
         const [photoUrl, goalImageUrl] = await Promise.all([
           uploadPhoto(photoUri!, user.id, issueId),
           uploadGoalImage(simUrl, user.id, issueId),
@@ -98,6 +111,7 @@ export default function GeneratingScreen() {
           userId: user.id,
           photoUrl,
           analysisScores: analysisResult,
+          llmSummary,
         });
 
         // 5. Prefetch issue + entries so TrackDetail renders instantly (no spinner)

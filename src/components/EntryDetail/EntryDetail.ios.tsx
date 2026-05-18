@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Image,
   ActivityIndicator, useWindowDimensions,
@@ -20,6 +20,45 @@ function formatDate(isoDate: string): string {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 }
+
+// ── Typewriter card — isolated so its state updates never re-render the parent ──
+
+const TypewriterInsights = memo(({ summary }: { summary: string }) => {
+  const [displayed, setDisplayed] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [cursorOn, setCursorOn] = useState(true);
+
+  useEffect(() => {
+    setDisplayed('');
+    setTyping(true);
+    let i = 0;
+    let interval: ReturnType<typeof setInterval>;
+    const delay = setTimeout(() => {
+      interval = setInterval(() => {
+        i++;
+        setDisplayed(summary.slice(0, i));
+        if (i >= summary.length) { clearInterval(interval); setTyping(false); }
+      }, 0);
+    }, 300);
+    return () => { clearTimeout(delay); clearInterval(interval); };
+  }, [summary]);
+
+  useEffect(() => {
+    if (!typing) { setCursorOn(false); return; }
+    const t = setInterval(() => setCursorOn(v => !v), 500);
+    return () => clearInterval(t);
+  }, [typing]);
+
+  return (
+    <BlurView intensity={50} tint="systemUltraThinMaterial" style={styles.insightsCard}>
+      <Text style={styles.cardTitle}>AI INSIGHTS</Text>
+      <Text style={styles.insightsText}>
+        {displayed}
+        {typing ? <Text style={styles.cursor}>{cursorOn ? '|' : ' '}</Text> : null}
+      </Text>
+    </BlurView>
+  );
+});
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -99,6 +138,9 @@ export default function EntryDetailIOS() {
           </BlurView>
         </View>
 
+        {/* ── AI Insights ── */}
+        {entry.llm_summary ? <TypewriterInsights summary={entry.llm_summary} /> : null}
+
         {/* ── Radar chart ── */}
         {/* Two-layer card: clipped blur background + unclipped content so labels never get cut off */}
         <View style={styles.radarCard}>
@@ -160,6 +202,7 @@ export default function EntryDetailIOS() {
             );
           })}
         </BlurView>
+
 
       </ScrollView>
     </View>
@@ -240,6 +283,26 @@ const styles = StyleSheet.create({
     borderColor: IOSColors.subtleSeparator,
     padding: 16,
     gap: 2,
+  },
+
+  // AI Insights card
+  insightsCard: {
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: IOSColors.subtleSeparator,
+    padding: 16,
+    gap: 8,
+  },
+  insightsText: {
+    fontSize: 14,
+    color: IOSColors.label,
+    lineHeight: 21,
+  },
+  cursor: {
+    fontSize: 14,
+    color: IOSColors.fill,
+    fontWeight: '300',
   },
 
   // Metric rows

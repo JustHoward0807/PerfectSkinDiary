@@ -5,15 +5,16 @@ import { Colors, IOSColors } from '../../../../src/theme';
 import { runSkinAnalysis } from '../../../../src/services/youcam/youcamApi';
 import { supabase } from '../../../../src/services/supabase/supabase';
 import { uploadEntryPhoto } from '../../../../src/services/supabase/storage';
-import { createEntry } from '../../../../src/services/supabase/issueService';
+import { createEntry, fetchProducts } from '../../../../src/services/supabase/issueService';
 
 const STEPS = [
-  { label: 'Uploading your photo',  sub: 'Sending your selfie securely...' },
-  { label: 'Analysing your skin',   sub: 'Checking 12 skin metrics with AI...' },
-  { label: 'Saving your entry',     sub: 'Almost ready!' },
+  { label: 'Uploading your photo',    sub: 'Sending your selfie securely...' },
+  { label: 'Analysing your skin',     sub: 'Checking 12 skin metrics with AI...' },
+  { label: 'Generating insights',     sub: 'Interpreting your skin scores...' },
+  { label: 'Saving your entry',       sub: 'Almost ready!' },
 ] as const;
 
-const PROGRESS_AT_STEP = [0.05, 0.50, 0.88];
+const PROGRESS_AT_STEP = [0.05, 0.45, 0.75, 0.90];
 
 const surface     = Platform.OS === 'ios' ? IOSColors.background : Colors.surface;
 const textPrimary = Platform.OS === 'ios' ? IOSColors.label      : Colors.onSurface;
@@ -43,15 +44,29 @@ export default function EntryAnalyzingScreen() {
         const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
         const analysisPromise = runSkinAnalysis(photoUri!, user.id, issueId!, today);
+        // Kick off analysis and products fetch in parallel
+        const productsPromise = fetchProducts(issueId!).catch(() => []);
 
         await new Promise(r => setTimeout(r, 3000));
         setStepIndex(1);
         animateTo(PROGRESS_AT_STEP[1]);
 
-        const analysisResult = await analysisPromise;
+        const [analysisResult, products] = await Promise.all([analysisPromise, productsPromise]);
 
         setStepIndex(2);
         animateTo(PROGRESS_AT_STEP[2]);
+
+        // Call the interpret Edge Function — non-fatal if it fails
+        let llmSummary: string | null = null;
+        try {
+          const { data } = await supabase.functions.invoke('interpret', {
+            body: { scores: analysisResult, products },
+          });
+          llmSummary = (data as { summary?: string } | null)?.summary ?? null;
+        } catch { /* proceed without summary */ }
+
+        setStepIndex(3);
+        animateTo(PROGRESS_AT_STEP[3]);
 
         const photoUrl = await uploadEntryPhoto(photoUri!, user.id, issueId!, today);
         const entryId = await createEntry({
@@ -60,6 +75,7 @@ export default function EntryAnalyzingScreen() {
           photoUrl,
           analysisScores: analysisResult,
           entryDate: today,
+          llmSummary,
         });
 
         animateTo(1.0, 300);

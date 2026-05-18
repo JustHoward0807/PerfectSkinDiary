@@ -19,7 +19,8 @@ export async function fetchUserIssues(userId: string): Promise<IssueListItem[]> 
   if (error) throw new Error(`fetchUserIssues failed: ${error.message}`);
   return (data ?? []) as unknown as IssueListItem[];
 }
-export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores'>;
+export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores' | 'llm_summary'>;
+export type Product = Pick<Tables<'products'>, 'name' | 'brand' | 'category'>;
 
 export async function fetchIssue(issueId: string): Promise<IssueData> {
   const { data, error } = await supabase
@@ -44,11 +45,20 @@ export async function fetchEntries(issueId: string): Promise<EntryData[]> {
 export async function fetchEntry(entryId: string): Promise<EntryData> {
   const { data, error } = await supabase
     .from('entries')
-    .select('id, entry_date, photo_url, analysis_scores, delta_scores')
+    .select('id, entry_date, photo_url, analysis_scores, delta_scores, llm_summary')
     .eq('id', entryId)
     .single();
   if (error) throw new Error(`fetchEntry failed: ${error.message}`);
   return data as EntryData;
+}
+
+export async function fetchProducts(issueId: string): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('name, brand, category')
+    .eq('issue_id', issueId);
+  if (error) throw new Error(`fetchProducts failed: ${error.message}`);
+  return (data ?? []) as Product[];
 }
 
 interface CreateIssueParams {
@@ -81,6 +91,7 @@ interface CreateEntryParams {
   photoUrl: string;
   analysisScores: unknown;
   entryDate: string;
+  llmSummary?: string | null;
 }
 
 export async function createEntry(params: CreateEntryParams): Promise<string> {
@@ -93,6 +104,7 @@ export async function createEntry(params: CreateEntryParams): Promise<string> {
       photo_url: params.photoUrl,
       analysis_scores: params.analysisScores as Json,
       delta_scores: null,
+      llm_summary: params.llmSummary ?? null,
     })
     .select('id')
     .single();
@@ -105,6 +117,7 @@ interface CreateDayOneEntryParams {
   userId: string;
   photoUrl: string;
   analysisScores: unknown;
+  llmSummary?: string | null;
 }
 
 export async function createDayOneEntry(params: CreateDayOneEntryParams): Promise<void> {
@@ -119,6 +132,7 @@ export async function createDayOneEntry(params: CreateDayOneEntryParams): Promis
       photo_url: params.photoUrl,
       analysis_scores: params.analysisScores as Json,
       delta_scores: null,
+      llm_summary: params.llmSummary ?? null,
     });
   if (error) throw new Error(`createDayOneEntry failed: ${error.message}`);
 }
