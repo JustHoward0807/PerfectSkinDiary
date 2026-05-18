@@ -1,5 +1,6 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { unzipSync } from 'fflate';
+import { supabase } from '../supabase/supabase';
 
 const YOUCAM_BASE = 'https://yce-api-01.makeupar.com';
 const API_KEY = process.env.EXPO_PUBLIC_YOUCAM_API_KEY!;
@@ -125,10 +126,61 @@ async function pollTask(label: string, apiPath: string, taskId: string, maxAttem
   throw new Error('Analysis is taking too long. Please check your connection and try again.');
 }
 
+// ── Upload a single mask file from the ZIP to Supabase Storage ──
+async function uploadMaskFile(
+  files: Record<string, Uint8Array>,
+  maskName: string,
+  userId: string,
+  issueId: string,
+  date: string,
+): Promise<string> {
+  const maskKey = Object.keys(files).find(k => k === maskName || k.endsWith('/' + maskName));
+  if (!maskKey) throw new Error(`[analysis] mask file "${maskName}" not found in ZIP`);
+
+  const ext = maskName.split('.').pop()?.toLowerCase();
+  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const path = `${userId}/${issueId}/Masks/${date}/${maskName}`;
+
+  const { error } = await supabase.storage
+    .from('photos')
+    .upload(path, files[maskKey], { contentType, upsert: true });
+  if (error) throw new Error(`mask upload failed for "${maskName}": ${error.message}`);
+
+  return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl;
+}
+
+// ── Walk the score_info.json tree; upload every output_mask_name file and replace its value with the Supabase URL ──
+async function replaceMaskNamesWithUrls(
+  obj: unknown,
+  files: Record<string, Uint8Array>,
+  userId: string,
+  issueId: string,
+  date: string,
+): Promise<unknown> {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  if (Array.isArray(obj)) {
+    return Promise.all(obj.map(item => replaceMaskNamesWithUrls(item, files, userId, issueId, date)));
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (key === 'output_mask_name' && typeof value === 'string') {
+      result[key] = await uploadMaskFile(files, value, userId, issueId, date);
+    } else {
+      result[key] = await replaceMaskNamesWithUrls(value, files, userId, issueId, date);
+    }
+  }
+  return result;
+}
+
 // ── Extract score_info.json from the analysis result ZIP ──
 // The analysis poll result is { url: "https://...zip" }.
 // The ZIP contains a folder with .png mask files, a 1.jpg, and score_info.json.
-async function extractScoreInfoFromZip(zipUrl: string): Promise<unknown> {
+async function extractScoreInfoFromZip(
+  zipUrl: string,
+  userId: string,
+  issueId: string,
+  date: string,
+): Promise<unknown> {
   const res = await fetch(zipUrl);
   if (!res.ok) throw new Error(`[analysis] ZIP download failed: ${res.status}`);
 
@@ -140,11 +192,18 @@ async function extractScoreInfoFromZip(zipUrl: string): Promise<unknown> {
 
   const text = new TextDecoder().decode(files[scoreKey]);
   console.log('[analysis] score_info.json content:', text);
-  return JSON.parse(text);
+  const scoreData = JSON.parse(text);
+
+  return replaceMaskNamesWithUrls(scoreData, files, userId, issueId, date);
 }
 
 // ── Public: run HD skin analysis ──
-export async function runSkinAnalysis(photoUri: string): Promise<unknown> {
+export async function runSkinAnalysis(
+  photoUri: string,
+  userId: string,
+  issueId: string,
+  date: string,
+): Promise<unknown> {
   const readyUri = await preparePhoto(photoUri);
   const localBlob = await fetch(readyUri).then(r => r.blob());
   const contentType = 'image/jpeg';
@@ -163,10 +222,10 @@ export async function runSkinAnalysis(photoUri: string): Promise<unknown> {
     dst_actions: HD_ACTIONS,
   });
 
-  // Poll returns { url: "...zip" } — download and extract score_info.json
+  // Poll returns { url: "...zip" } — download, extract score_info.json, and upload masks
   const taskResult = await pollTask('analysis', '/s2s/v2.0/task/skin-analysis', taskId);
   const zipUrl = (taskResult as { url: string }).url;
-  return extractScoreInfoFromZip(zipUrl);
+  return extractScoreInfoFromZip(zipUrl, userId, issueId, date);
 }
 
 const ALL_SIM_KEYS = ['acne', 'dark_circles', 'eye_bags', 'oiliness', 'pores', 'radiance', 'redness', 'spots', 'texture', 'wrinkle'];

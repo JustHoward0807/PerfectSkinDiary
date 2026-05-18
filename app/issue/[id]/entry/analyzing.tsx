@@ -36,7 +36,13 @@ export default function EntryAnalyzingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        const analysisPromise = runSkinAnalysis(photoUri!);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        const analysisPromise = runSkinAnalysis(photoUri!, user.id, issueId!, today);
 
         await new Promise(r => setTimeout(r, 3000));
         setStepIndex(1);
@@ -47,11 +53,6 @@ export default function EntryAnalyzingScreen() {
         setStepIndex(2);
         animateTo(PROGRESS_AT_STEP[2]);
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const d = new Date();
-        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const photoUrl = await uploadEntryPhoto(photoUri!, user.id, issueId!, today);
         const entryId = await createEntry({
           issueId: issueId!,
