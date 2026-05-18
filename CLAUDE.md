@@ -99,13 +99,23 @@ The YouCam HD analysis ZIP contains `score_info.json` with this shape:
   "all": { "score": 77.8 },
   "hd_wrinkle": { "whole": { "raw_score": 86.7, "ui_score": 79 }, "forehead": { ... }, ... },
   "hd_pore":    { "whole": { ... }, "forehead": { ... }, "nose": { ... }, "cheek": { ... } },
-  "hd_acne":    { "whole": { "raw_score": 64.3, "ui_score": 79 } },
+  "hd_acne":    { "whole": { "raw_score": 64.3, "ui_score": 79 }, "output_mask_name": "hd_acne_output.png" },
   "skin_age": 33,
   "resize_image": { "image_name": "resize_image.jpg" }
 }
 ```
 
 Use `all.score` for the overall skin score — **do not average individual metric `ui_score` values**.
+
+### Mask upload and storage
+
+`runSkinAnalysis(photoUri, userId, issueId, date)` requires all four arguments — `userId`, `issueId`, and `date` are needed to build the Supabase Storage path before uploading masks.
+
+Analysis tasks are created with `enable_mask_overlay: true`. The resulting ZIP contains mask image files (`.png`) alongside `score_info.json`. During `extractScoreInfoFromZip`, every `output_mask_name` key is found via recursive traversal; the referenced file is uploaded to the `photos` bucket at `${userId}/${issueId}/Masks/${date}/${filename}`, and the value is replaced in-place with the resulting Supabase public URL before the JSON is stored as `analysis_scores`. No separate `mask_urls` column is populated — the URLs live embedded in the `analysis_scores` JSONB.
+
+### New-track (Day 1) issue creation order
+
+`generating.tsx` creates the issue **before** running analysis — with `baselineScores: null` and `goalImageUrl: ''` — to obtain a real `issueId` for use in mask Storage paths. After both `runSkinAnalysis` and `runSkinSimulation` complete and images are uploaded, a single `UPDATE` patches both `baseline_scores` and `goal_image_url` together. Do not revert to the old order (analysis first, create issue second) — mask uploads would fail with `undefined` path segments, violating the Storage RLS policy.
 
 ### Date handling — always use device local time
 
