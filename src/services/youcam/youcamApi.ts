@@ -124,7 +124,7 @@ async function uploadMaskFile(
 
   const ext = maskName.split('.').pop()?.toLowerCase();
   const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
-  const path = `${userId}/${issueId}/Masks/${date}/${maskName}`;
+  const path = `${userId}/${issueId}/${date}/Masks/${maskName}`;
 
   const { error } = await supabase.storage
     .from('photos')
