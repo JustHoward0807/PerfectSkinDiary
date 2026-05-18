@@ -7,6 +7,7 @@ import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
 import { createIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import type { Json } from '../../src/types/database.types';
 
 const STEPS = [
   { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
@@ -46,8 +47,24 @@ export default function GeneratingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        // Run both in parallel
-        const analysisPromise  = runSkinAnalysis(photoUri!);
+        // Fetch user and compute date upfront — needed for mask upload paths
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        // Create the issue early to get a real UUID before analysis starts
+        const issueId = await createIssue({
+          userId: user.id,
+          title: trackName ?? '',
+          targetConcerns: concerns,
+          goalImageUrl: '',       // filled in after upload
+          baselineScores: null,   // filled in after analysis
+        });
+
+        // Run both in parallel (analysis needs issueId for mask upload paths)
+        const analysisPromise  = runSkinAnalysis(photoUri!, user.id, issueId, today);
         const simulationPromise = runSkinSimulation(photoUri!, concerns);
 
         // Advance to "Analysing" after upload window (~3 s)
@@ -81,31 +98,19 @@ export default function GeneratingScreen() {
         animateTo(PROGRESS_AT_STEP[4]);
 
         // ── Persist to Supabase ──────────────────────────────────────────────
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
         const simUrl = (simulationResult as Record<string, unknown>)?.url as string | undefined;
         if (!simUrl) throw new Error('No simulation URL returned');
 
-        // 1. Create the issue first to get a real UUID
-        const issueId = await createIssue({
-          userId: user.id,
-          title: trackName ?? '',
-          targetConcerns: concerns,
-          goalImageUrl: '',       // filled in after upload
-          baselineScores: analysisResult,
-        });
-
-        // 2. Upload both images in parallel
+        // 1. Upload both images in parallel
         const [photoUrl, goalImageUrl] = await Promise.all([
           uploadPhoto(photoUri!, user.id, issueId),
           uploadGoalImage(simUrl, user.id, issueId),
         ]);
 
-        // 3. Patch the goal_image_url now that we have the real Storage URL
-        await supabase.from('issues').update({ goal_image_url: goalImageUrl }).eq('id', issueId);
+        // 2. Patch goal_image_url and baseline_scores now that we have them
+        await supabase.from('issues').update({ goal_image_url: goalImageUrl, baseline_scores: analysisResult as Json }).eq('id', issueId);
 
-        // 4. Insert the Day 1 entry
+        // 3. Insert the Day 1 entry
         await createDayOneEntry({
           issueId,
           userId: user.id,
@@ -114,7 +119,7 @@ export default function GeneratingScreen() {
           llmSummary,
         });
 
-        // 5. Prefetch issue + entries so TrackDetail renders instantly (no spinner)
+        // 4. Prefetch issue + entries so TrackDetail renders instantly (no spinner)
         const [prefetchedIssue, prefetchedEntries] = await Promise.all([
           fetchIssue(issueId),
           fetchEntries(issueId),

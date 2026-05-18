@@ -15,8 +15,13 @@ import { METRICS, computeOverallScore, getMetricScore } from '../../utils/skinSc
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', {
+  return parseLocalDate(isoDate).toLocaleDateString('en-US', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 }
