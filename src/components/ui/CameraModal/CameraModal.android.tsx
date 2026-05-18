@@ -23,10 +23,13 @@ export default function CameraModal({ visible, onClose, onConfirm }: CameraModal
   const handleCapture = async () => {
     const result = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
     if (!result?.uri) return;
+    // Resize to 1500px wide before flipping — full sensor resolution (4K+) makes
+    // the manipulator slow; 1500px is still plenty for YouCam HD analysis.
     const flippedRef = await ImageManipulator.manipulate(result.uri)
+      .resize({ width: 1500 })
       .flip(FlipType.Horizontal)
       .renderAsync();
-    const flipped = await flippedRef.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
+    const flipped = await flippedRef.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
     setPreviewUri(flipped.uri);
   };
 

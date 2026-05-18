@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, Image,
+  View, Text, ScrollView, StyleSheet, Pressable,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -169,7 +170,7 @@ export default function TrackDetailAndroid() {
         >
           {/* Layer 1: Goal image (full, behind) */}
           {goalImageUri ? (
-            <Image source={{ uri: goalImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Image source={{ uri: goalImageUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.placeholderBg]}>
               <Ionicons name="image-outline" size={36} color={Colors.onSurfaceVariant} />
@@ -186,7 +187,7 @@ export default function TrackDetailAndroid() {
               <Image
                 source={{ uri: day1PhotoUri }}
                 style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: containerWidth }}
-                resizeMode="cover"
+                contentFit="cover"
               />
             ) : (
               <View style={[{ position: 'absolute', top: 0, bottom: 0, left: 0, width: containerWidth }, styles.placeholderBg]}>
@@ -202,11 +203,11 @@ export default function TrackDetailAndroid() {
             </View>
           </Animated.View>
 
-          {/* Layer 4: Corner labels */}
-          <View style={styles.labelDay1}>
+          {/* Layer 4: Corner labels — claim the touch so the panResponder never sees it */}
+          <View style={styles.labelDay1} onStartShouldSetResponder={() => true}>
             <Text style={styles.labelText}>DAY 1</Text>
           </View>
-          <View style={styles.labelGoal}>
+          <View style={styles.labelGoal} onStartShouldSetResponder={() => true}>
             <Ionicons name="sparkles" size={10} color="#FFFFFF" />
             <Text style={styles.labelText}> GOAL</Text>
           </View>
@@ -275,7 +276,7 @@ export default function TrackDetailAndroid() {
                   onPress={() => router.push(`/issue/${issueId}/entry/${entry.id}`)}
                 >
                   <View style={styles.entryThumb}>
-                    <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} resizeMode="cover" />
+                    <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} contentFit="cover" />
                   </View>
                   <View style={styles.entryInfo}>
                     <Text style={styles.entryDate}>{formatDate(entry.entry_date)}</Text>
