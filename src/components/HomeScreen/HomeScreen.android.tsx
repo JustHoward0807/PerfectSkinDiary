@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors as C, Radius } from '../../theme';
 import { supabase } from '../../services/supabase/supabase';
 import { fetchUserIssues, type IssueListItem } from '../../services/supabase/issueService';
+import { useWeather } from '../../hooks/useWeather';
 
 const _cache = new Map<string, IssueListItem[]>();
 
@@ -37,7 +38,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [tracks, setTracks] = useState<IssueListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const weather = useWeather();
+  const skipFirstFocus = useRef(true);
 
+  // Initial load — use cache if available
   useEffect(() => {
     (async () => {
       try {
@@ -59,24 +63,67 @@ export default function HomeScreen() {
     })();
   }, []);
 
+  // On every return — refresh greeting + re-fetch tracks (skip first focus = initial mount)
+  useFocusEffect(
+    useCallback(() => {
+      weather.refresh();
+      if (skipFirstFocus.current) { skipFirstFocus.current = false; return; }
+      (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          _cache.delete(user.id);
+          const data = await fetchUserIssues(user.id);
+          _cache.set(user.id, data);
+          setTracks(data);
+        } catch (e) {
+          console.error('[HomeScreen] refetch failed:', e);
+        }
+      })();
+    }, [weather.refresh]),
+  );
+
   return (
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.greeting}>Good Morning</Text>
+      <Text style={styles.greeting}>{weather.greeting}</Text>
 
       <Pressable onPress={() => router.push('/uv-detail')}>
         {({ pressed }) => (
           <View style={[styles.uvCard, pressed && styles.uvCardPressed]}>
             <View style={styles.uvLeft}>
-              <View style={styles.uvIconWrap}>
-                <Ionicons name="sunny-outline" size={22} color={C.onSurfaceVariant} />
+              <View style={[
+                styles.uvIconWrap,
+                !weather.permissionDenied && !weather.loading
+                  ? { backgroundColor: weather.uvLevel.color + '22' }
+                  : undefined,
+              ]}>
+                <Ionicons
+                  name={!weather.loading && weather.uvIndex > 0 ? 'sunny' : 'sunny-outline'}
+                  size={22}
+                  color={weather.permissionDenied ? C.onSurfaceVariant : weather.uvLevel.color}
+                />
               </View>
               <View>
-                <Text style={styles.uvTitle}>UV 6 – High</Text>
-                <Text style={styles.uvSub}>SPF 30+ recommended today</Text>
+                {weather.permissionDenied ? (
+                  <>
+                    <Text style={styles.uvTitle}>UV unavailable</Text>
+                    <Text style={styles.uvSub}>Enable location in Settings</Text>
+                  </>
+                ) : weather.loading ? (
+                  <>
+                    <Text style={styles.uvTitle}>UV —</Text>
+                    <Text style={styles.uvSub}>Checking UV index...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.uvTitle}>UV {weather.uvIndex} – {weather.uvLevel.label}</Text>
+                    <Text style={styles.uvSub}>{weather.uvLevel.spfRec}</Text>
+                  </>
+                )}
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color={C.onSurfaceVariant} />

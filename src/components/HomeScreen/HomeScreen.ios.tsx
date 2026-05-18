@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Pressable,
   ActivityIndicator, useWindowDimensions,
@@ -6,11 +6,12 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IOSColors as C, Radius } from '../../theme';
 import { supabase } from '../../services/supabase/supabase';
 import { fetchUserIssues, type IssueListItem } from '../../services/supabase/issueService';
+import { useWeather } from '../../hooks/useWeather';
 
 // ── Cache ──────────────────────────────────────────────────────────────────
 const _cache = new Map<string, IssueListItem[]>();
@@ -149,7 +150,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [tracks, setTracks] = useState<IssueListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const weather = useWeather();
+  const skipFirstFocus = useRef(true);
 
+  // Initial load — use cache if available
   useEffect(() => {
     (async () => {
       try {
@@ -171,24 +175,62 @@ export default function HomeScreen() {
     })();
   }, []);
 
+  // On every return — refresh greeting + re-fetch tracks (skip first focus = initial mount)
+  useFocusEffect(
+    useCallback(() => {
+      weather.refresh();
+      if (skipFirstFocus.current) { skipFirstFocus.current = false; return; }
+      (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          _cache.delete(user.id);
+          const data = await fetchUserIssues(user.id);
+          _cache.set(user.id, data);
+          setTracks(data);
+        } catch (e) {
+          console.error('[HomeScreen] refetch failed:', e);
+        }
+      })();
+    }, [weather.refresh]),
+  );
+
   return (
     <View style={styles.root}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.greeting}>Good Morning</Text>
+        <Text style={styles.greeting}>{weather.greeting}</Text>
 
         <Pressable onPress={() => router.push('/uv-detail')}>
           {({ pressed }) => (
             <BlurView intensity={pressed ? 90 : 70} tint="systemMaterial" style={styles.uvCard}>
               <View style={styles.uvLeft}>
                 <BlurView intensity={60} tint="systemThinMaterial" style={styles.uvIconWrap}>
-                  <Ionicons name="sunny-outline" size={22} color="#FF9F0A" />
+                  <Ionicons
+                    name={!weather.loading && weather.uvIndex > 0 ? 'sunny' : 'sunny-outline'}
+                    size={22}
+                    color={weather.permissionDenied ? '#8E8E93' : weather.uvLevel.color}
+                  />
                 </BlurView>
                 <View>
-                  <Text style={styles.uvTitle}>UV 6 – High</Text>
-                  <Text style={styles.uvSub}>SPF 30+ recommended today</Text>
+                  {weather.permissionDenied ? (
+                    <>
+                      <Text style={styles.uvTitle}>UV unavailable</Text>
+                      <Text style={styles.uvSub}>Enable location in Settings</Text>
+                    </>
+                  ) : weather.loading ? (
+                    <>
+                      <Text style={styles.uvTitle}>UV —</Text>
+                      <Text style={styles.uvSub}>Checking UV index...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.uvTitle}>UV {weather.uvIndex} – {weather.uvLevel.label}</Text>
+                      <Text style={styles.uvSub}>{weather.uvLevel.spfRec}</Text>
+                    </>
+                  )}
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#8E8E93" />

@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis."
+        "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis.",
+        "NSLocationWhenInUseUsageDescription": "PerfectSkinDiary uses your location to show the current UV index and recommend the right SPF for today."
       }
     },
     "android": {
@@ -25,7 +26,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["android.permission.ACCESS_COARSE_LOCATION"]
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +35,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-camera"
+      "expo-camera",
+      "expo-location"
     ]
   }
 }
