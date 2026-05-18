@@ -9,7 +9,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IOSColors, Colors, Radius } from '../../theme';
-import { Header, CameraModal } from '../ui';
+import { Header, CameraModal, ComparisonFullscreen } from '../ui';
 import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
@@ -47,6 +47,7 @@ export default function TrackDetailIOS() {
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const isFirstMount = useRef(true);
 
   useEffect(() => {
@@ -150,6 +151,13 @@ export default function TrackDetailIOS() {
         }}
       />
 
+      <ComparisonFullscreen
+        visible={fullscreenOpen}
+        day1Uri={day1PhotoUri}
+        goalUri={goalImageUri}
+        onClose={() => setFullscreenOpen(false)}
+      />
+
       <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} />
 
       <ScrollView
@@ -213,6 +221,17 @@ export default function TrackDetailIOS() {
             <Ionicons name="sparkles" size={10} color="#FFFFFF" />
             <Text style={styles.labelText}> GOAL</Text>
           </BlurView>
+
+          {/* Fullscreen button — bottom-right */}
+          <Pressable
+            style={styles.fullscreenBtn}
+            onPress={() => setFullscreenOpen(true)}
+            hitSlop={8}
+          >
+            <BlurView intensity={50} tint="dark" style={styles.fullscreenBtnInner}>
+              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+            </BlurView>
+          </Pressable>
         </View>
 
         {/* ── Overall progress ── */}
@@ -390,6 +409,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  fullscreenBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  fullscreenBtnInner: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Overall progress card
