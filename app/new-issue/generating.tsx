@@ -116,6 +116,7 @@ export default function GeneratingScreen() {
           userId: user.id,
           photoUrl,
           analysisScores: analysisResult,
+          entryDate: today,
           llmSummary,
         });
 

@@ -117,12 +117,12 @@ interface CreateDayOneEntryParams {
   userId: string;
   photoUrl: string;
   analysisScores: unknown;
+  entryDate: string;
   llmSummary?: string | null;
 }
 
 export async function createDayOneEntry(params: CreateDayOneEntryParams): Promise<void> {
-  const d = new Date();
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const today = params.entryDate;
   const { error } = await supabase
     .from('entries')
     .insert({

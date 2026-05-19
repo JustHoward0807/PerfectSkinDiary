@@ -205,7 +205,6 @@ export async function runSkinAnalysis(
   const taskId = await createTask('analysis', '/s2s/v2.0/task/skin-analysis', {
     src_file_id: fileId,
     dst_actions: HD_ACTIONS,
-    enable_mask_overlay: true,
   });
 
   // Poll returns { url: "...zip" } — download, extract score_info.json, and upload masks

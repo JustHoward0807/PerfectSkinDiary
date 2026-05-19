@@ -22,7 +22,7 @@ function buildDemoEntries(photoUri: string): PrefetchedEntry[] {
     date.setDate(date.getDate() - daysAgo);
     return {
       id: `demo-${daysAgo}`,
-      entry_date: date.toISOString().split('T')[0],
+      entry_date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
       photo_url: photoUri,
       analysis_scores: demoAnalysis,
       delta_scores: null,

@@ -111,7 +111,7 @@ Use `all.score` for the overall skin score — **do not average individual metri
 
 `runSkinAnalysis(photoUri, userId, issueId, date)` requires all four arguments — `userId`, `issueId`, and `date` are needed to build the Supabase Storage path before uploading masks.
 
-Analysis tasks are created with `enable_mask_overlay: true`. The resulting ZIP contains mask image files (`.png`) alongside `score_info.json`. During `extractScoreInfoFromZip`, every `output_mask_name` key is found via recursive traversal; the referenced file is uploaded to the `photos` bucket at `${userId}/${issueId}/Masks/${date}/${filename}`, and the value is replaced in-place with the resulting Supabase public URL before the JSON is stored as `analysis_scores`. No separate `mask_urls` column is populated — the URLs live embedded in the `analysis_scores` JSONB.
+Analysis tasks are created with `enable_mask_overlay: false`. This returns 24 individual PNG mask files in the result ZIP (one per skin concern/region), each referenced by its own `output_mask_name` key in `score_info.json`. During `extractScoreInfoFromZip`, every `output_mask_name` key is found via recursive traversal; the referenced file is uploaded to the `photos` bucket at `${userId}/${issueId}/${date}/Masks/${filename}`, and the value is replaced in-place with the resulting Supabase public URL before the JSON is stored as `analysis_scores`. No separate `mask_urls` column is populated — the URLs live embedded in the `analysis_scores` JSONB. (Setting `enable_mask_overlay: true` would return a single pre-blended image instead of individual masks — do not use that.)
 
 ### New-track (Day 1) issue creation order
 
