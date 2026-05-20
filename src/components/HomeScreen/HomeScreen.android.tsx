@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors as C, Radius } from '../../theme';
 import { supabase } from '../../services/supabase/supabase';
@@ -37,6 +37,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [tracks, setTracks] = useState<IssueListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const isFirstMount = useRef(true);
 
   useEffect(() => {
     (async () => {
@@ -58,6 +59,25 @@ export default function HomeScreen() {
       }
     })();
   }, []);
+
+  // Re-fetch whenever the screen comes back into focus (e.g. after deleting a track)
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) { isFirstMount.current = false; return; }
+      (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          _cache.delete(user.id);
+          const data = await fetchUserIssues(user.id);
+          _cache.set(user.id, data);
+          setTracks(data);
+        } catch (e) {
+          console.error('[HomeScreen] refetch failed:', e);
+        }
+      })();
+    }, [])
+  );
 
   return (
     <ScrollView
