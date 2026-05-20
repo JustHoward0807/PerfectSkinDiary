@@ -44,7 +44,6 @@ export default function EntryAnalyzingScreen() {
         const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
         const analysisPromise = runSkinAnalysis(photoUri!, user.id, issueId!, today);
-        // Kick off analysis and products fetch in parallel
         const productsPromise = fetchProducts(issueId!).catch(() => []);
 
         await new Promise(r => setTimeout(r, 3000));
@@ -56,7 +55,6 @@ export default function EntryAnalyzingScreen() {
         setStepIndex(2);
         animateTo(PROGRESS_AT_STEP[2]);
 
-        // Call the interpret Edge Function — non-fatal if it fails
         let llmSummary: string | null = null;
         try {
           const { data } = await supabase.functions.invoke('interpret', {

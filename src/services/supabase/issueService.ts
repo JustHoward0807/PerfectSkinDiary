@@ -61,12 +61,68 @@ export async function fetchProducts(issueId: string): Promise<Product[]> {
   return (data ?? []) as Product[];
 }
 
+// Recursively lists and deletes every file under a storage path prefix (best-effort)
+async function deleteStorageFolder(prefix: string): Promise<void> {
+  const { data: items } = await supabase.storage.from('photos').list(prefix);
+  if (!items?.length) return;
+
+  const filePaths: string[] = [];
+  const subfolderNames: string[] = [];
+
+  for (const item of items) {
+    if (item.id !== null) {
+      filePaths.push(`${prefix}/${item.name}`);
+    } else {
+      subfolderNames.push(item.name);
+    }
+  }
+
+  if (filePaths.length) {
+    await supabase.storage.from('photos').remove(filePaths).catch(() => {});
+  }
+  for (const name of subfolderNames) {
+    await deleteStorageFolder(`${prefix}/${name}`);
+  }
+}
+
 interface CreateIssueParams {
   userId: string;
   title: string;
   targetConcerns: string[];
   goalImageUrl: string;
   baselineScores: unknown;
+}
+
+export async function deleteEntry(entryId: string, photoUrl: string): Promise<void> {
+  // Delete the entire date folder (photo + all mask files) — best-effort
+  const marker = '/object/public/photos/';
+  const idx = photoUrl.indexOf(marker);
+  if (idx !== -1) {
+    const fullPath = photoUrl.slice(idx + marker.length);
+    const folderPrefix = fullPath.substring(0, fullPath.lastIndexOf('/'));
+    await deleteStorageFolder(folderPrefix).catch(() => {});
+  }
+  const { error } = await supabase.from('entries').delete().eq('id', entryId);
+  if (error) throw new Error(`deleteEntry failed: ${error.message}`);
+}
+
+export async function deleteIssue(issueId: string): Promise<void> {
+  const { error } = await supabase.from('issues').delete().eq('id', issueId);
+  if (error) throw new Error(`deleteIssue failed: ${error.message}`);
+}
+
+export async function deleteIssueAndEntries(issueId: string): Promise<void> {
+  // Fetch user_id to build the storage prefix, then wipe the entire issue folder
+  const { data: issueRow } = await supabase
+    .from('issues').select('user_id').eq('id', issueId).single();
+  if (issueRow?.user_id) {
+    await deleteStorageFolder(`${issueRow.user_id}/${issueId}`).catch(() => {});
+  }
+  // Delete DB rows (entries first — no cascade)
+  const { error: entryError } = await supabase.from('entries').delete().eq('issue_id', issueId);
+  if (entryError) throw new Error(`deleteIssueAndEntries (entries) failed: ${entryError.message}`);
+  const { error: issueError } = await supabase.from('issues').delete().eq('id', issueId);
+  if (issueError) throw new Error(`deleteIssueAndEntries (issue) failed: ${issueError.message}`);
 }
 
 export async function createIssue(params: CreateIssueParams): Promise<string> {

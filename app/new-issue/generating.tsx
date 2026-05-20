@@ -6,7 +6,7 @@ import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/yo
 import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
-import { createIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import { createIssue, deleteIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
 import type { Json } from '../../src/types/database.types';
 
 const STEPS = [
@@ -34,6 +34,7 @@ export default function GeneratingScreen() {
 
   const [stepIndex, setStepIndex] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const issueIdRef = useRef<string | null>(null);
 
   const animateTo = (toValue: number, duration = 500) => {
     Animated.timing(progressAnim, { toValue, duration, useNativeDriver: false }).start();
@@ -47,7 +48,6 @@ export default function GeneratingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        // Fetch user and compute date upfront — needed for mask upload paths
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
@@ -62,6 +62,7 @@ export default function GeneratingScreen() {
           goalImageUrl: '',       // filled in after upload
           baselineScores: null,   // filled in after analysis
         });
+        issueIdRef.current = issueId;
 
         // Run both in parallel (analysis needs issueId for mask upload paths)
         const analysisPromise  = runSkinAnalysis(photoUri!, user.id, issueId, today);
@@ -103,7 +104,7 @@ export default function GeneratingScreen() {
 
         // 1. Upload both images in parallel
         const [photoUrl, goalImageUrl] = await Promise.all([
-          uploadPhoto(photoUri!, user.id, issueId),
+          uploadPhoto(photoUri!, user.id, issueId, today),
           uploadGoalImage(simUrl, user.id, issueId),
         ]);
 
@@ -133,16 +134,33 @@ export default function GeneratingScreen() {
         animateTo(1.0, 300);
         await new Promise(r => setTimeout(r, 350));
 
+        issueIdRef.current = null;
         router.replace(`/issue/${issueId}`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Something went wrong.';
         Alert.alert('Analysis failed', message, [
-          { text: 'Go back', onPress: () => router.back() },
+          {
+            text: 'Go back',
+            onPress: async () => {
+              if (issueIdRef.current) {
+                try { await deleteIssue(issueIdRef.current); } catch {}
+                issueIdRef.current = null;
+              }
+              router.back();
+            },
+          },
         ]);
       }
     };
 
     run();
+
+    return () => {
+      if (issueIdRef.current) {
+        deleteIssue(issueIdRef.current).catch(() => {});
+        issueIdRef.current = null;
+      }
+    };
   }, []);
 
   const step = STEPS[stepIndex];

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable,
+  View, Text, ScrollView, StyleSheet, Pressable, Alert,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -9,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '../../theme';
 import { Header, CameraModal, ComparisonFullscreen } from '../ui';
-import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
+import { fetchIssue, fetchEntries, deleteIssueAndEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
 import { computeOverallScore } from '../../utils/skinScore';
@@ -47,7 +47,33 @@ export default function TrackDetailAndroid() {
   const [sortAsc, setSortAsc] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const isFirstMount = useRef(true);
+
+  const handleDelete = () => {
+    if (issueId === DEMO_ISSUE_ID) return;
+    Alert.alert(
+      'Delete Track',
+      'This action cannot be undone. The track, all its entries, and the goal image will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteIssueAndEntries(issueId!);
+              router.dismissAll();
+            } catch (e) {
+              setDeleting(false);
+              Alert.alert('Delete failed', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!issueId) return;
@@ -127,13 +153,26 @@ export default function TrackDetailAndroid() {
 
   const sortedEntries = sortAsc ? entries : [...entries].reverse();
 
+  const deleteBtn = issueId !== DEMO_ISSUE_ID ? (
+    <Pressable
+      onPress={handleDelete}
+      disabled={deleting}
+      hitSlop={8}
+      style={styles.deleteBtn}
+      android_ripple={{ color: 'rgba(155,62,40,0.15)', radius: 20 }}
+    >
+      <Ionicons name="trash-outline" size={22} color={Colors.error} />
+    </Pressable>
+  ) : null;
+
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Track Detail" onBack={() => router.dismissAll()} />
+        <Header title="Track Detail" onBack={() => router.dismissAll()} trailing={deleteBtn} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Colors.primary} size="large" />
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -156,7 +195,7 @@ export default function TrackDetailAndroid() {
         onClose={() => setFullscreenOpen(false)}
       />
 
-      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} />
+      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} trailing={deleteBtn} />
 
       <ScrollView
         style={styles.scroll}
@@ -291,7 +330,10 @@ export default function TrackDetailAndroid() {
                 {/* Entry card */}
                 <Pressable
                   style={styles.entryCard}
-                  onPress={() => router.push(`/issue/${issueId}/entry/${entry.id}`)}
+                  onPress={() => router.push({
+                    pathname: `/issue/${issueId}/entry/${entry.id}`,
+                    params: { isDay1: entry.id === entries[0]?.id ? '1' : '0' },
+                  })}
                 >
                   <View style={styles.entryThumb}>
                     <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} contentFit="cover" />
@@ -311,6 +353,8 @@ export default function TrackDetailAndroid() {
         </View>
 
       </ScrollView>
+
+      {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
 
       {/* ── Floating action button ── */}
       <Pressable
@@ -334,6 +378,8 @@ const styles = StyleSheet.create({
   scroll:           { flex: 1 },
   content:          { padding: 16, gap: 16 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  deleteBtn:        { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, overflow: 'hidden' },
+  deletingOverlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', zIndex: 99 },
 
   // Slider card
   sliderCard: {

@@ -4,8 +4,9 @@ export async function uploadPhoto(
   localUri: string,
   userId: string,
   issueId: string,
+  date: string,
 ): Promise<string> {
-  const path = `${userId}/${issueId}/selfie.jpg`;
+  const path = `${userId}/${issueId}/${date}/selfie.jpg`;
   const response = await fetch(localUri);
   const arrayBuffer = await response.arrayBuffer();
   const { error } = await supabase.storage

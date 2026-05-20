@@ -6,7 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { IOSColors } from '../../../theme';
 import type { HeaderProps } from './Header.types';
 
-export default function Header({ title, onBack }: HeaderProps) {
+export default function Header({ title, onBack, trailing }: HeaderProps) {
   const insets = useSafeAreaInsets();
   const handleBack = onBack ?? (() => router.back());
 
@@ -20,7 +20,7 @@ export default function Header({ title, onBack }: HeaderProps) {
         <Ionicons name="arrow-back" size={24} color={IOSColors.label} />
       </Pressable>
       <Text style={styles.title}>{title}</Text>
-      <View style={styles.spacer} />
+      <View style={styles.trailingSlot}>{trailing ?? null}</View>
     </BlurView>
   );
 }
@@ -43,5 +43,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: IOSColors.label, textAlign: 'center', letterSpacing: 0.35 },
-  spacer: { width: 40 },
+  trailingSlot: { width: 40, alignItems: 'center', justifyContent: 'center' },
 });

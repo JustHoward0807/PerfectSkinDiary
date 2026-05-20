@@ -5,3 +5,4 @@ export { default as Chip } from './Chip/Chip';
 export { default as SectionCard } from './SectionCard/SectionCard';
 export { default as CameraModal } from './CameraModal/CameraModal';
 export { default as ComparisonFullscreen } from './ComparisonFullscreen/ComparisonFullscreen';
+export { default as PhotoFullscreen } from './PhotoFullscreen/PhotoFullscreen';

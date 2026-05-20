@@ -1,15 +1,16 @@
 import { useEffect, useState, memo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Image,
+  View, Text, ScrollView, StyleSheet, Image, Pressable, Alert,
   ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { RadarChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { IOSColors, Radius } from '../../theme';
-import { Header } from '../ui';
-import { fetchEntry, type EntryData } from '../../services/supabase/issueService';
+import { Header, PhotoFullscreen } from '../ui';
+import { fetchEntry, deleteEntry, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { METRICS, computeOverallScore, getMetricScore } from '../../utils/skinScore';
 
@@ -68,12 +69,39 @@ const TypewriterInsights = memo(({ summary }: { summary: string }) => {
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function EntryDetailIOS() {
-  const { entryId } = useLocalSearchParams<{ id: string; entryId: string }>();
+  const { entryId, isDay1 } = useLocalSearchParams<{ id: string; entryId: string; isDay1?: string }>();
   const { bottom } = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
   const [entry, setEntry] = useState<EntryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    if (!entryId || !entry || entryId.startsWith('demo-')) return;
+    Alert.alert(
+      'Delete Entry',
+      'This entry will be permanently deleted. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteEntry(entryId, entry.photo_url);
+              router.back();
+            } catch (e) {
+              setDeleting(false);
+              Alert.alert('Delete failed', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!entryId) return;
@@ -96,13 +124,22 @@ export default function EntryDetailIOS() {
     })();
   }, [entryId]);
 
+  const isDemoEntry = entryId?.startsWith('demo-') ?? false;
+  const isFirstEntry = isDay1 === '1';
+  const deleteBtn = !isDemoEntry && !isFirstEntry ? (
+    <Pressable onPress={handleDelete} disabled={deleting} hitSlop={8} style={styles.deleteBtn}>
+      <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+    </Pressable>
+  ) : null;
+
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Entry Detail" onBack={() => router.back()} />
+        <Header title="Entry Detail" onBack={() => router.back()} trailing={deleteBtn} />
         <View style={styles.center}>
           <ActivityIndicator color={IOSColors.fill} size="large" />
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -110,10 +147,11 @@ export default function EntryDetailIOS() {
   if (!entry) {
     return (
       <View style={styles.root}>
-        <Header title="Entry Detail" onBack={() => router.back()} />
+        <Header title="Entry Detail" onBack={() => router.back()} trailing={deleteBtn} />
         <View style={styles.center}>
           <Text style={styles.errorText}>Entry not found.</Text>
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -126,7 +164,7 @@ export default function EntryDetailIOS() {
 
   return (
     <View style={styles.root}>
-      <Header title={formatDate(entry.entry_date)} onBack={() => router.back()} />
+      <Header title={formatDate(entry.entry_date)} onBack={() => router.back()} trailing={deleteBtn} />
 
       <ScrollView
         style={styles.scroll}
@@ -137,11 +175,24 @@ export default function EntryDetailIOS() {
         {/* ── Photo ── */}
         <View style={styles.photoCard}>
           <Image source={{ uri: entry.photo_url }} style={styles.photo} resizeMode="cover" />
-          <BlurView intensity={55} tint="dark" style={styles.scoreBadge}>
+          <BlurView intensity={55} tint="dark" style={styles.scoreBadge} pointerEvents="none">
             <Text style={styles.scoreBadgeLabel}>OVERALL</Text>
             <Text style={styles.scoreBadgeValue}>{overallScore > 0 ? overallScore : '—'}</Text>
           </BlurView>
+          <Pressable style={styles.fullscreenBtn} onPress={() => setFullscreenOpen(true)} hitSlop={8}>
+            <BlurView intensity={50} tint="dark" style={styles.fullscreenBtnInner}>
+              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+            </BlurView>
+          </Pressable>
         </View>
+
+        <PhotoFullscreen
+          visible={fullscreenOpen}
+          photoUri={entry.photo_url}
+          score={overallScore}
+          analysisScores={entry.analysis_scores}
+          onClose={() => setFullscreenOpen(false)}
+        />
 
         {/* ── AI Insights ── */}
         {entry.llm_summary ? <TypewriterInsights summary={entry.llm_summary} /> : null}
@@ -210,6 +261,8 @@ export default function EntryDetailIOS() {
 
 
       </ScrollView>
+
+      {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
     </View>
   );
 }
@@ -217,11 +270,13 @@ export default function EntryDetailIOS() {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: IOSColors.background },
-  scroll:  { flex: 1 },
-  content: { padding: 16, gap: 14 },
-  center:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  root:      { flex: 1, backgroundColor: IOSColors.background },
+  scroll:    { flex: 1 },
+  content:   { padding: 16, gap: 14 },
+  center:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { fontSize: 15, color: IOSColors.secondaryLabel },
+  deleteBtn:       { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  deletingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', zIndex: 99 },
 
   // Photo
   photoCard: {
@@ -235,12 +290,25 @@ const styles = StyleSheet.create({
   scoreBadge: {
     position: 'absolute',
     bottom: 14,
-    right: 14,
+    left: 14,
     borderRadius: Radius.sm,
     overflow: 'hidden',
     paddingHorizontal: 14,
     paddingVertical: 8,
     alignItems: 'center',
+  },
+  fullscreenBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  fullscreenBtnInner: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scoreBadgeLabel: {
     fontSize: 9,
