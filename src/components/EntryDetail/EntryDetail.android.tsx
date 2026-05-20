@@ -187,10 +187,11 @@ export default function EntryDetailAndroid() {
             style={styles.fullscreenBtn}
             onPress={() => setFullscreenOpen(true)}
             hitSlop={8}
-            android_ripple={{ color: 'rgba(255,255,255,0.2)', radius: 15 }}
+            android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: false }}
           >
             <View style={styles.fullscreenBtnInner}>
-              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+              <Ionicons name="expand-outline" size={13} color="#FFFFFF" />
+              <Text style={styles.fullscreenBtnText}>Masks</Text>
             </View>
           </Pressable>
         </View>
@@ -307,16 +308,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     right: 10,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.full,
     overflow: 'hidden',
   },
   fullscreenBtnInner: {
-    width: 30,
-    height: 30,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: Radius.sm,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: Radius.full,
+  },
+  fullscreenBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scoreBadgeLabel: {
     fontSize: 9,

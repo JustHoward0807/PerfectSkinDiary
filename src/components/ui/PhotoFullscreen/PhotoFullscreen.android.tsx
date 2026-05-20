@@ -33,14 +33,14 @@ function extractMasks(scores: unknown): MaskItem[] {
     if (!metricKey.startsWith('hd_') || typeof metricVal !== 'object' || metricVal === null) continue;
     const metricObj = metricVal as Record<string, unknown>;
     const metricLabel = METRIC_LABELS[metricKey] ?? metricKey;
-    if (typeof metricObj.output_mask_name === 'string') {
+    if (typeof metricObj.output_mask_name === 'string' && metricObj.output_mask_name.startsWith('https://')) {
       results.push({ label: metricLabel, url: metricObj.output_mask_name });
       continue;
     }
     for (const [regionKey, regionVal] of Object.entries(metricObj)) {
       if (typeof regionVal !== 'object' || regionVal === null) continue;
       const regionObj = regionVal as Record<string, unknown>;
-      if (typeof regionObj.output_mask_name !== 'string') continue;
+      if (typeof regionObj.output_mask_name !== 'string' || !regionObj.output_mask_name.startsWith('https://')) continue;
       const regionLabel = REGION_LABELS[regionKey] ?? regionKey;
       results.push({ label: regionLabel ? `${metricLabel} · ${regionLabel}` : metricLabel, url: regionObj.output_mask_name });
     }
@@ -65,9 +65,11 @@ export default function PhotoFullscreenAndroid({
   const [selectedMasks, setSelectedMasks] = useState<Set<string>>(new Set());
   const [maskOpacity, setMaskOpacity] = useState(DEFAULT_OPACITY);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const panelAnim      = useRef(new Animated.Value(0)).current;
   const sliderVisAnim  = useRef(new Animated.Value(0)).current;
+  const toastAnim      = useRef(new Animated.Value(0)).current;
   // Refs for gesture — avoid stale closures
   const maskOpacityRef  = useRef(DEFAULT_OPACITY);
   const lastPageY       = useRef(0);
@@ -105,12 +107,26 @@ export default function PhotoFullscreenAndroid({
     if (!visible) {
       panelAnim.setValue(0);
       sliderVisAnim.setValue(0);
+      toastAnim.setValue(0);
       setPanelOpen(false);
       setSelectedMasks(new Set());
       setMaskOpacity(DEFAULT_OPACITY);
+      setToastVisible(false);
       maskOpacityRef.current = DEFAULT_OPACITY;
     }
   }, [visible]);
+
+  // ── No-mask toast ──
+  const showNoMaskToast = () => {
+    toastAnim.stopAnimation();
+    toastAnim.setValue(0);
+    setToastVisible(true);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => setToastVisible(false));
+  };
 
   // ── Panel ──
   const openPanel  = () => { setPanelOpen(true); Animated.spring(panelAnim, { toValue: 1, useNativeDriver: true, bounciness: 3, speed: 14 }).start(); };
@@ -183,18 +199,16 @@ export default function PhotoFullscreenAndroid({
             <Text style={styles.scoreBadgeValue}>{score > 0 ? score : '—'}</Text>
           </View>
 
-          {hasMasks && (
-            <Pressable
-              style={[styles.masksBtn, { bottom: bottom + 20 }]}
-              onPress={togglePanel}
-              hitSlop={8}
-              android_ripple={{ color: 'rgba(255,255,255,0.2)', radius: 21, borderless: true }}
-            >
-              <View style={[styles.masksBtnInner, panelOpen && styles.masksBtnActive]}>
-                <Ionicons name="layers-outline" size={18} color={panelOpen ? Colors.primary : '#FFFFFF'} />
-              </View>
-            </Pressable>
-          )}
+          <Pressable
+            style={[styles.masksBtn, { bottom: bottom + 20 }]}
+            onPress={hasMasks ? togglePanel : showNoMaskToast}
+            hitSlop={8}
+            android_ripple={{ color: 'rgba(255,255,255,0.2)', radius: 24, borderless: true }}
+          >
+            <View style={[styles.masksBtnInner, panelOpen && styles.masksBtnActive, !hasMasks && styles.masksBtnDisabled]}>
+              <Ionicons name="layers-outline" size={22} color={panelOpen ? Colors.primary : '#FFFFFF'} />
+            </View>
+          </Pressable>
 
           <Pressable
             style={[styles.closeBtn, { top: top + 12 }]}
@@ -278,6 +292,13 @@ export default function PhotoFullscreenAndroid({
           </ScrollView>
         </Animated.View>
 
+        {/* ── No-mask toast ── */}
+        {toastVisible && (
+          <Animated.View style={[styles.toast, { bottom: bottom + 80, opacity: toastAnim }]} pointerEvents="none">
+            <Text style={styles.toastText}>Mask overlay not available</Text>
+          </Animated.View>
+        )}
+
       </View>
     </Modal>
   );
@@ -298,12 +319,13 @@ const styles = StyleSheet.create({
   scoreBadgeLabel: { fontSize: 9, fontWeight: '600', color: 'rgba(255,255,255,0.6)', letterSpacing: 1.2 },
   scoreBadgeValue: { fontSize: 30, fontWeight: '300', color: '#FFFFFF', lineHeight: 34 },
 
-  masksBtn:     { position: 'absolute', right: 16, borderRadius: Radius.sm, overflow: 'hidden' },
-  masksBtnInner: {
-    width: 42, height: 42, backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center',
-  },
-  masksBtnActive: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  masksBtn:        { position: 'absolute', right: 16, borderRadius: Radius.sm, overflow: 'hidden' },
+  masksBtnInner:   { width: 48, height: 48, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  masksBtnActive:  { backgroundColor: 'rgba(255,255,255,0.9)' },
+  masksBtnDisabled:{ opacity: 0.4 },
+
+  toast:    { position: 'absolute', alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full },
+  toastText:{ fontSize: 13, fontWeight: '500', color: '#FFFFFF' },
 
   closeBtn:     { position: 'absolute', right: 16, borderRadius: 20, overflow: 'hidden' },
   closeBtnInner: {
