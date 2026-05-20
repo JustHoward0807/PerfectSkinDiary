@@ -64,7 +64,7 @@ Shared UI primitives live in **`src/components/ui/`** and are re-exported from `
 
 | Component | Purpose |
 |---|---|
-| `Header` | Screen header with back button; handles `top` safe area inset internally |
+| `Header` | Screen header with back button; handles `top` safe area inset internally. Accepts optional `trailing?: ReactNode` rendered in the right slot (replaces the spacer) |
 | `PrimaryButton` | Full-width CTA; accepts `label`, `icon` (Ionicons name), `disabled` |
 | `FormInput` | Labelled text field |
 | `Chip` | Selectable tag with haptic feedback on press |
@@ -142,11 +142,35 @@ function parseLocalDate(iso: string): Date {
 
 The FAB in TrackDetail opens `CameraModal`. On photo confirm, TrackDetail navigates to `app/issue/[id]/entry/analyzing.tsx` (passing `photoUri` as a route param). That screen runs `runSkinAnalysis` → `uploadEntryPhoto` → `createEntry`, then does `router.replace('/issue/${id}/entry/${entryId}')` so the back stack returns to TrackDetail (not the analyzing screen).
 
-`uploadEntryPhoto(localUri, userId, issueId, date)` in `storage.ts` stores to `${userId}/${issueId}/${date}.jpg` with `upsert: true` — separate from the Day 1 `uploadPhoto` path (`selfie.jpg`, `upsert: false`).
+Storage paths in `storage.ts`:
+
+| Function | Path | Notes |
+|---|---|---|
+| `uploadPhoto(uri, userId, issueId, date)` | `${userId}/${issueId}/${date}/selfie.jpg` | Day 1 only, `upsert: false` |
+| `uploadEntryPhoto(uri, userId, issueId, date)` | `${userId}/${issueId}/${date}/${date}.jpg` | Subsequent entries, `upsert: true` |
+| `uploadGoalImage(url, userId, issueId)` | `${userId}/${issueId}/goal.jpg` | Issue-scoped (not date-scoped), `upsert: false` |
+
+Both Day 1 and subsequent entry photos live under their date folder — this makes per-entry storage deletion straightforward by listing and removing `${userId}/${issueId}/${date}/`.
 
 `createEntry` in `issueService.ts` inserts with `delta_scores: null`; delta computation is not yet implemented.
 
-TrackDetail re-fetches entries via `useFocusEffect` (skipping the first mount to preserve the prefetch optimisation).
+TrackDetail re-fetches entries via `useFocusEffect` (skipping the first mount to preserve the prefetch optimisation). HomeScreen also uses `useFocusEffect` (skip-first-mount) to invalidate its `_cache` and re-fetch the issue list whenever the screen regains focus — this keeps the list correct after a track deletion.
+
+### Deleting tracks and entries
+
+**Delete track** — `deleteIssueAndEntries(issueId)` in `issueService.ts`:
+1. Fetches `user_id` from the issue row
+2. Calls the private `deleteStorageFolder(prefix)` helper to recursively list and remove every file under `${userId}/${issueId}/` (photos, masks, goal image) — best-effort, non-fatal
+3. Deletes all `entries` rows for the issue, then the `issues` row
+
+**Delete entry** — `deleteEntry(entryId, photoUrl)` in `issueService.ts`:
+1. Extracts the storage folder prefix from `photoUrl` (everything before the last `/` after `/object/public/photos/`)
+2. Calls `deleteStorageFolder` on that date folder (removes the photo + all mask PNGs) — best-effort
+3. Deletes the `entries` row
+
+**Day 1 protection** — TrackDetail passes `isDay1='1'` as a route param when navigating to the first entry (`entries[0]`, ascending sort). EntryDetail hides the delete button when `isDay1 === '1'`. The Day 1 entry is only removed as part of a full track deletion.
+
+`deleteStorageFolder(prefix)` is a module-private recursive async function in `issueService.ts`. It calls `supabase.storage.from('photos').list(prefix)`, splits results into files (`item.id !== null`) and subfolders (`item.id === null`), removes files in bulk, then recurses into subfolders.
 
 ### Back navigation from TrackDetail
 
