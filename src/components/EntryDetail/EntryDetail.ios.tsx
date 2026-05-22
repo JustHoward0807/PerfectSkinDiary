@@ -181,7 +181,8 @@ export default function EntryDetailIOS() {
           </BlurView>
           <Pressable style={styles.fullscreenBtn} onPress={() => setFullscreenOpen(true)} hitSlop={8}>
             <BlurView intensity={50} tint="dark" style={styles.fullscreenBtnInner}>
-              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+              <Ionicons name="expand-outline" size={13} color="#FFFFFF" />
+              <Text style={styles.fullscreenBtnText}>Masks</Text>
             </BlurView>
           </Pressable>
         </View>
@@ -301,14 +302,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     right: 10,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.full,
     overflow: 'hidden',
   },
   fullscreenBtnInner: {
-    width: 30,
-    height: 30,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  fullscreenBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scoreBadgeLabel: {
     fontSize: 9,
