@@ -27,7 +27,7 @@ export default function CameraModal({ visible, onClose, onConfirm }: CameraModal
     const flippedRef = await ImageManipulator.manipulate(result.uri)
       .flip(FlipType.Horizontal)
       .renderAsync();
-    const flipped = await flippedRef.saveAsync({ compress: 0.85, format: SaveFormat.JPEG });
+    const flipped = await flippedRef.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
     setPreviewUri(flipped.uri);
   };
 

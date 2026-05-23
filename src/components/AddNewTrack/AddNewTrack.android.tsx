@@ -61,7 +61,7 @@ export default function AddNewTrackAndroid() {
       <CameraModal
         visible={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        onConfirm={(uri) => { setPhotoUri(uri); setAcknowledged(false); }}
+        onConfirm={(uri) => { setPhotoUri(uri); setAcknowledged(false); setCameraOpen(false); }}
       />
 
       {/* ── Header ── */}

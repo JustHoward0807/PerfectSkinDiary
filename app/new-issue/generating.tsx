@@ -6,16 +6,18 @@ import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/yo
 import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
-import { createIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import { createIssue, deleteIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import type { Json } from '../../src/types/database.types';
 
 const STEPS = [
   { label: 'Uploading your photo',      sub: 'Sending your selfie securely...' },
   { label: 'Analysing your skin',       sub: 'Checking 12 skin metrics with AI...' },
   { label: 'Generating goal image',     sub: 'Creating your personalised target...' },
+  { label: 'Generating insights',       sub: 'Interpreting your skin scores...' },
   { label: 'Preparing your results',    sub: 'Almost ready!' },
 ] as const;
 
-const PROGRESS_AT_STEP = [0.05, 0.35, 0.65, 0.92];
+const PROGRESS_AT_STEP = [0.05, 0.30, 0.55, 0.75, 0.92];
 
 const surface     = Platform.OS === 'ios' ? IOSColors.background : Colors.surface;
 const textPrimary = Platform.OS === 'ios' ? IOSColors.label      : Colors.onSurface;
@@ -32,6 +34,7 @@ export default function GeneratingScreen() {
 
   const [stepIndex, setStepIndex] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const issueIdRef = useRef<string | null>(null);
 
   const animateTo = (toValue: number, duration = 500) => {
     Animated.timing(progressAnim, { toValue, duration, useNativeDriver: false }).start();
@@ -45,8 +48,24 @@ export default function GeneratingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        // Run both in parallel
-        const analysisPromise  = runSkinAnalysis(photoUri!);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        // Create the issue early to get a real UUID before analysis starts
+        const issueId = await createIssue({
+          userId: user.id,
+          title: trackName ?? '',
+          targetConcerns: concerns,
+          goalImageUrl: '',       // filled in after upload
+          baselineScores: null,   // filled in after analysis
+        });
+        issueIdRef.current = issueId;
+
+        // Run both in parallel (analysis needs issueId for mask upload paths)
+        const analysisPromise  = runSkinAnalysis(photoUri!, user.id, issueId, today);
         const simulationPromise = runSkinSimulation(photoUri!, concerns);
 
         // Advance to "Analysing" after upload window (~3 s)
@@ -64,43 +83,45 @@ export default function GeneratingScreen() {
           simulationPromise,
         ]);
 
+        // Step 3 — Claude insights (no products on Day 1)
         setStepIndex(3);
         animateTo(PROGRESS_AT_STEP[3]);
 
-        // ── Persist to Supabase ──────────────────────────────────────────────
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        let llmSummary: string | null = null;
+        try {
+          const { data } = await supabase.functions.invoke('interpret', {
+            body: { scores: analysisResult, products: [] },
+          });
+          llmSummary = (data as { summary?: string } | null)?.summary ?? null;
+        } catch { /* non-fatal — proceed without summary */ }
 
+        setStepIndex(4);
+        animateTo(PROGRESS_AT_STEP[4]);
+
+        // ── Persist to Supabase ──────────────────────────────────────────────
         const simUrl = (simulationResult as Record<string, unknown>)?.url as string | undefined;
         if (!simUrl) throw new Error('No simulation URL returned');
 
-        // 1. Create the issue first to get a real UUID
-        const issueId = await createIssue({
-          userId: user.id,
-          title: trackName ?? '',
-          targetConcerns: concerns,
-          goalImageUrl: '',       // filled in after upload
-          baselineScores: analysisResult,
-        });
-
-        // 2. Upload both images in parallel under the real issueId path
+        // 1. Upload both images in parallel
         const [photoUrl, goalImageUrl] = await Promise.all([
-          uploadPhoto(photoUri!, user.id, issueId),
+          uploadPhoto(photoUri!, user.id, issueId, today),
           uploadGoalImage(simUrl, user.id, issueId),
         ]);
 
-        // 3. Patch the goal_image_url now that we have the real Storage URL
-        await supabase.from('issues').update({ goal_image_url: goalImageUrl }).eq('id', issueId);
+        // 2. Patch goal_image_url and baseline_scores now that we have them
+        await supabase.from('issues').update({ goal_image_url: goalImageUrl, baseline_scores: analysisResult as Json }).eq('id', issueId);
 
-        // 4. Insert the Day 1 entry
+        // 3. Insert the Day 1 entry
         await createDayOneEntry({
           issueId,
           userId: user.id,
           photoUrl,
           analysisScores: analysisResult,
+          entryDate: today,
+          llmSummary,
         });
 
-        // 5. Prefetch issue + entries so TrackDetail renders instantly (no spinner)
+        // 4. Prefetch issue + entries so TrackDetail renders instantly (no spinner)
         const [prefetchedIssue, prefetchedEntries] = await Promise.all([
           fetchIssue(issueId),
           fetchEntries(issueId),
@@ -113,16 +134,33 @@ export default function GeneratingScreen() {
         animateTo(1.0, 300);
         await new Promise(r => setTimeout(r, 350));
 
+        issueIdRef.current = null;
         router.replace(`/issue/${issueId}`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Something went wrong.';
         Alert.alert('Analysis failed', message, [
-          { text: 'Go back', onPress: () => router.back() },
+          {
+            text: 'Go back',
+            onPress: async () => {
+              if (issueIdRef.current) {
+                try { await deleteIssue(issueIdRef.current); } catch {}
+                issueIdRef.current = null;
+              }
+              router.back();
+            },
+          },
         ]);
       }
     };
 
     run();
+
+    return () => {
+      if (issueIdRef.current) {
+        deleteIssue(issueIdRef.current).catch(() => {});
+        issueIdRef.current = null;
+      }
+    };
   }, []);
 
   const step = STEPS[stepIndex];

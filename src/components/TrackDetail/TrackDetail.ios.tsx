@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, Image,
+  View, Text, ScrollView, StyleSheet, Pressable, Alert,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IOSColors, Colors, Radius } from '../../theme';
-import { Header, CameraModal } from '../ui';
-import { fetchIssue, fetchEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
+import { Header, CameraModal, ComparisonFullscreen } from '../ui';
+import { fetchIssue, fetchEntries, deleteIssueAndEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
 import { computeOverallScore } from '../../utils/skinScore';
@@ -46,7 +47,34 @@ export default function TrackDetailIOS() {
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const isFirstMount = useRef(true);
+
+  const handleDelete = () => {
+    if (issueId === DEMO_ISSUE_ID) return;
+    Alert.alert(
+      'Delete Track',
+      'This action cannot be undone. The track, all its entries, and the goal image will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteIssueAndEntries(issueId!);
+              router.dismissAll();
+            } catch (e) {
+              setDeleting(false);
+              Alert.alert('Delete failed', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!issueId) return;
@@ -127,13 +155,20 @@ export default function TrackDetailIOS() {
 
   const sortedEntries = sortAsc ? entries : [...entries].reverse();
 
+  const deleteBtn = issueId !== DEMO_ISSUE_ID ? (
+    <Pressable onPress={handleDelete} disabled={deleting} hitSlop={8} style={styles.deleteBtn}>
+      <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+    </Pressable>
+  ) : null;
+
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Track Detail" onBack={() => router.dismissAll()} />
+        <Header title="Track Detail" onBack={() => router.dismissAll()} trailing={deleteBtn} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={IOSColors.fill} size="large" />
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -149,7 +184,14 @@ export default function TrackDetailIOS() {
         }}
       />
 
-      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} />
+      <ComparisonFullscreen
+        visible={fullscreenOpen}
+        day1Uri={day1PhotoUri}
+        goalUri={goalImageUri}
+        onClose={() => setFullscreenOpen(false)}
+      />
+
+      <Header title={issue?.title ?? 'Track Detail'} onBack={() => router.dismissAll()} trailing={deleteBtn} />
 
       <ScrollView
         style={styles.scroll}
@@ -171,7 +213,7 @@ export default function TrackDetailIOS() {
         >
           {/* Layer 1: Goal image (full, behind) */}
           {goalImageUri ? (
-            <Image source={{ uri: goalImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Image source={{ uri: goalImageUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.placeholderBg]}>
               <Ionicons name="image-outline" size={36} color={IOSColors.secondaryLabel} />
@@ -188,7 +230,7 @@ export default function TrackDetailIOS() {
               <Image
                 source={{ uri: day1PhotoUri }}
                 style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: containerWidth }}
-                resizeMode="cover"
+                contentFit="cover"
               />
             ) : (
               <View style={[{ position: 'absolute', top: 0, bottom: 0, left: 0, width: containerWidth }, styles.placeholderBg]}>
@@ -204,14 +246,25 @@ export default function TrackDetailIOS() {
             </BlurView>
           </Animated.View>
 
-          {/* Layer 4: Corner labels */}
-          <BlurView intensity={50} tint="dark" style={styles.labelDay1}>
+          {/* Layer 4: Corner labels — claim the touch so the panResponder never sees it */}
+          <BlurView intensity={50} tint="dark" style={styles.labelDay1} onStartShouldSetResponder={() => true}>
             <Text style={styles.labelText}>DAY 1</Text>
           </BlurView>
-          <BlurView intensity={50} tint="dark" style={styles.labelGoal}>
+          <BlurView intensity={50} tint="dark" style={styles.labelGoal} onStartShouldSetResponder={() => true}>
             <Ionicons name="sparkles" size={10} color="#FFFFFF" />
             <Text style={styles.labelText}> GOAL</Text>
           </BlurView>
+
+          {/* Fullscreen button — bottom-right */}
+          <Pressable
+            style={styles.fullscreenBtn}
+            onPress={() => setFullscreenOpen(true)}
+            hitSlop={8}
+          >
+            <BlurView intensity={50} tint="dark" style={styles.fullscreenBtnInner}>
+              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+            </BlurView>
+          </Pressable>
         </View>
 
         {/* ── Overall progress ── */}
@@ -274,10 +327,13 @@ export default function TrackDetailIOS() {
                 {/* Entry card */}
                 <Pressable
                   style={styles.entryCard}
-                  onPress={() => router.push(`/issue/${issueId}/entry/${entry.id}`)}
+                  onPress={() => router.push({
+                    pathname: `/issue/${issueId}/entry/${entry.id}`,
+                    params: { isDay1: entry.id === entries[0]?.id ? '1' : '0' },
+                  })}
                 >
                   <View style={styles.entryThumb}>
-                    <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} resizeMode="cover" />
+                    <Image source={{ uri: entry.photo_url }} style={styles.entryThumbImg} contentFit="cover" />
                   </View>
                   <View style={styles.entryInfo}>
                     <Text style={styles.entryDate}>{formatDate(entry.entry_date)}</Text>
@@ -294,6 +350,8 @@ export default function TrackDetailIOS() {
         </View>
 
       </ScrollView>
+
+      {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
 
       {/* ── Floating action button ── */}
       <Pressable
@@ -324,6 +382,8 @@ const styles = StyleSheet.create({
   scroll:           { flex: 1 },
   content:          { padding: 16, gap: 16 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  deleteBtn:        { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  deletingOverlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', zIndex: 99 },
 
   // Slider card
   sliderCard: {
@@ -389,6 +449,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  fullscreenBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  fullscreenBtnInner: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Overall progress card

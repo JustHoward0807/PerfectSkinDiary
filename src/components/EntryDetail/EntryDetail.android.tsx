@@ -1,34 +1,106 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Image,
+  View, Text, ScrollView, StyleSheet, Image, Pressable, Alert,
   ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { RadarChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, Radius } from '../../theme';
-import { Header } from '../ui';
-import { fetchEntry, type EntryData } from '../../services/supabase/issueService';
+import { Header, PhotoFullscreen } from '../ui';
+import { fetchEntry, deleteEntry, type EntryData } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { METRICS, computeOverallScore, getMetricScore } from '../../utils/skinScore';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', {
+  return parseLocalDate(isoDate).toLocaleDateString('en-US', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 }
 
+// ── Typewriter card — isolated so its state updates never re-render the parent ──
+
+const TypewriterInsights = memo(({ summary }: { summary: string }) => {
+  const [displayed, setDisplayed] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [cursorOn, setCursorOn] = useState(true);
+
+  useEffect(() => {
+    setDisplayed('');
+    setTyping(true);
+    let i = 0;
+    let interval: ReturnType<typeof setInterval>;
+    const delay = setTimeout(() => {
+      interval = setInterval(() => {
+        i++;
+        setDisplayed(summary.slice(0, i));
+        if (i >= summary.length) { clearInterval(interval); setTyping(false); }
+      }, 18);
+    }, 400);
+    return () => { clearTimeout(delay); clearInterval(interval); };
+  }, [summary]);
+
+  useEffect(() => {
+    if (!typing) { setCursorOn(false); return; }
+    const t = setInterval(() => setCursorOn(v => !v), 500);
+    return () => clearInterval(t);
+  }, [typing]);
+
+  return (
+    <View style={styles.insightsCard}>
+      <Text style={styles.cardTitle}>AI INSIGHTS</Text>
+      <Text style={styles.insightsText}>
+        {displayed}
+        {typing ? <Text style={styles.cursor}>{cursorOn ? '|' : ' '}</Text> : null}
+      </Text>
+    </View>
+  );
+});
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function EntryDetailAndroid() {
-  const { id: issueId, entryId } = useLocalSearchParams<{ id: string; entryId: string }>();
+  const { id: issueId, entryId, isDay1 } = useLocalSearchParams<{ id: string; entryId: string; isDay1?: string }>();
   const { bottom } = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
   const [entry, setEntry] = useState<EntryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    if (!entryId || !entry || entryId.startsWith('demo-')) return;
+    Alert.alert(
+      'Delete Entry',
+      'This entry will be permanently deleted. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteEntry(entryId, entry.photo_url);
+              router.back();
+            } catch (e) {
+              setDeleting(false);
+              Alert.alert('Delete failed', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!entryId) return;
@@ -51,13 +123,28 @@ export default function EntryDetailAndroid() {
     })();
   }, [entryId]);
 
+  const isDemoEntry = entryId?.startsWith('demo-') ?? false;
+  const isFirstEntry = isDay1 === '1';
+  const deleteBtn = !isDemoEntry && !isFirstEntry ? (
+    <Pressable
+      onPress={handleDelete}
+      disabled={deleting}
+      hitSlop={8}
+      style={styles.deleteBtn}
+      android_ripple={{ color: 'rgba(155,62,40,0.15)', radius: 20 }}
+    >
+      <Ionicons name="trash-outline" size={22} color={Colors.error} />
+    </Pressable>
+  ) : null;
+
   if (loading) {
     return (
       <View style={styles.root}>
-        <Header title="Entry Detail" onBack={() => router.back()} />
+        <Header title="Entry Detail" onBack={() => router.back()} trailing={deleteBtn} />
         <View style={styles.center}>
           <ActivityIndicator color={Colors.primary} size="large" />
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -65,10 +152,11 @@ export default function EntryDetailAndroid() {
   if (!entry) {
     return (
       <View style={styles.root}>
-        <Header title="Entry Detail" onBack={() => router.back()} />
+        <Header title="Entry Detail" onBack={() => router.back()} trailing={deleteBtn} />
         <View style={styles.center}>
           <Text style={styles.errorText}>Entry not found.</Text>
         </View>
+        {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
       </View>
     );
   }
@@ -80,7 +168,7 @@ export default function EntryDetailAndroid() {
 
   return (
     <View style={styles.root}>
-      <Header title={formatDate(entry.entry_date)} onBack={() => router.back()} />
+      <Header title={formatDate(entry.entry_date)} onBack={() => router.back()} trailing={deleteBtn} />
 
       <ScrollView
         style={styles.scroll}
@@ -91,11 +179,33 @@ export default function EntryDetailAndroid() {
         {/* ── Photo ── */}
         <View style={styles.photoCard}>
           <Image source={{ uri: entry.photo_url }} style={styles.photo} resizeMode="cover" />
-          <View style={styles.scoreBadge}>
+          <View style={styles.scoreBadge} pointerEvents="none">
             <Text style={styles.scoreBadgeLabel}>OVERALL</Text>
             <Text style={styles.scoreBadgeValue}>{overallScore > 0 ? overallScore : '—'}</Text>
           </View>
+          <Pressable
+            style={styles.fullscreenBtn}
+            onPress={() => setFullscreenOpen(true)}
+            hitSlop={8}
+            android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: false }}
+          >
+            <View style={styles.fullscreenBtnInner}>
+              <Ionicons name="expand-outline" size={13} color="#FFFFFF" />
+              <Text style={styles.fullscreenBtnText}>Masks</Text>
+            </View>
+          </Pressable>
         </View>
+
+        <PhotoFullscreen
+          visible={fullscreenOpen}
+          photoUri={entry.photo_url}
+          score={overallScore}
+          analysisScores={entry.analysis_scores}
+          onClose={() => setFullscreenOpen(false)}
+        />
+
+        {/* ── AI Insights ── */}
+        {entry.llm_summary ? <TypewriterInsights summary={entry.llm_summary} /> : null}
 
         {/* ── Radar chart ── */}
         {/* Two-layer card: surfaceVariant background clipped independently, outer is unclipped so labels render freely */}
@@ -156,7 +266,10 @@ export default function EntryDetailAndroid() {
           })}
         </View>
 
+
       </ScrollView>
+
+      {deleting && <View style={styles.deletingOverlay}><ActivityIndicator size="large" color="#FFFFFF" /></View>}
     </View>
   );
 }
@@ -164,11 +277,13 @@ export default function EntryDetailAndroid() {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: Colors.surface },
-  scroll:  { flex: 1 },
-  content: { padding: 16, gap: 14 },
-  center:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  root:      { flex: 1, backgroundColor: Colors.surface },
+  scroll:    { flex: 1 },
+  content:   { padding: 16, gap: 14 },
+  center:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { fontSize: 15, color: Colors.onSurfaceVariant },
+  deleteBtn:       { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, overflow: 'hidden' },
+  deletingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', zIndex: 99 },
 
   // Photo
   photoCard: {
@@ -182,12 +297,34 @@ const styles = StyleSheet.create({
   scoreBadge: {
     position: 'absolute',
     bottom: 14,
-    right: 14,
+    left: 14,
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: Radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 8,
     alignItems: 'center',
+  },
+  fullscreenBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
+  fullscreenBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: Radius.full,
+  },
+  fullscreenBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scoreBadgeLabel: {
     fontSize: 9,
@@ -236,6 +373,26 @@ const styles = StyleSheet.create({
     borderColor: Colors.outline,
     padding: 16,
     gap: 2,
+  },
+
+  // AI Insights card
+  insightsCard: {
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    padding: 16,
+    gap: 8,
+  },
+  insightsText: {
+    fontSize: 14,
+    color: Colors.onSurface,
+    lineHeight: 21,
+  },
+  cursor: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '300',
   },
 
   // Metric rows

@@ -40,6 +40,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const weather = useWeather();
   const skipFirstFocus = useRef(true);
+  const isFirstMount = useRef(true);
 
   // Initial load — use cache if available
   useEffect(() => {
