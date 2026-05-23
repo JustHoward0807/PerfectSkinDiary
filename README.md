@@ -312,7 +312,7 @@ AI-Skin-Analysis     AI-Skin-Simulation        Claude API
 ## 📱 App Flow
 
 ```
-Tab Bar: Home | Analysis (TBD) | Settings
+Tab Bar: Home | Analysis | Settings
 
 Home Screen
 ├── UV Index Widget (top right) → SPF recommendation
@@ -358,10 +358,22 @@ Entry Detail Screen  ← single day result
 ├── Score dashboard (all metrics + delta ↑↓)
 └── Claude summary
 
-Export Screen
-├── Select Track
-├── Multi-select entries
-└── [Export PDF] → share sheet
+Analysis Screen
+├── Day selector: 3 / 5 / 10 days (slices most recent N unique-date entries)
+├── Skin Score Trend card
+│     LineChart of overall score (all.score) per day
+│     Tap / drag → vertical strip pointer with score + date tooltip
+│     Animated on mount and on day-selector change
+│     Avg. score displayed in card header
+├── Skin Concerns grid (2-column)
+│     6 common concerns: Moisture, Redness, Pores, Texture, Acne, Oiliness
+│     Status label derived from latest entry score (≥80 / 65–79 / <65 tiers)
+│     Trend arrow: ↗ improved / ↘ worsened / → stable vs. first displayed entry
+│     Score bar proportional to metric value
+└── [Export PDF Report] → generates clinical PDF (see PDF export)
+
+Export (via Analysis screen)
+└── [Export PDF Report] → share sheet (iOS: in-app viewer + share; Android: system PDF app)
 ```
 
 ---

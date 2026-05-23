@@ -196,6 +196,33 @@ To skip API calls during development, set the track name to `"demo"` (case-insen
 
 Logic lives in `src/services/demoMode.ts`. Asset files are in `demo/` at the repo root.
 
+### interpret Edge Function — dual-mode API
+
+`supabase/functions/interpret/index.ts` handles two distinct request shapes:
+
+| Mode | Request body | Response |
+|---|---|---|
+| Single-entry | `{ scores: Record<string, unknown>, products: [...] }` | `{ summary: string }` — 3-sentence current-state summary |
+| Trend (multi-entry) | `{ entries: [{ date, scores }, ...], products: [...] }` | `{ bullets: string[] }` — 4 one-sentence trend insights |
+
+Detection: `Array.isArray(body.entries) && body.entries.length > 0` routes to trend mode; everything else falls through to single-entry mode. Both modes are backward-compatible — do not remove the single-entry branch; it is used by the per-entry LLM summary flow.
+
+### Bottom safe area pattern
+
+Tab screens must account for the native tab bar in their scroll content. Apply this to every tab screen's `contentContainerStyle`:
+
+```ts
+contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 60 }]}
+```
+
+Remove any hardcoded `paddingBottom` from the static `content` style — the inline value replaces it. On Android, also render a background-coloured spacer View below the ScrollView to fill the system navigation bar area:
+
+```tsx
+{Platform.OS === 'android' && insets.bottom > 0 && (
+  <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
+)}
+```
+
 ### Security model
 
 The RN client holds only the Supabase public anon key. All calls to YouCam and Claude go through **Supabase Edge Functions** which hold secrets server-side. Never put `YOUCAM_API_KEY` or `ANTHROPIC_API_KEY` in the app bundle.

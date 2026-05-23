@@ -22,6 +22,25 @@ export async function fetchUserIssues(userId: string): Promise<IssueListItem[]> 
 export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores' | 'llm_summary'>;
 export type Product = Pick<Tables<'products'>, 'name' | 'brand' | 'category'>;
 
+export type RecentEntry = {
+  id: string;
+  entry_date: string;
+  photo_url: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  analysis_scores: any;
+};
+
+export async function fetchRecentEntries(userId: string, limit = 5): Promise<RecentEntry[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, entry_date, photo_url, analysis_scores')
+    .eq('user_id', userId)
+    .order('entry_date', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`fetchRecentEntries failed: ${error.message}`);
+  return ((data ?? []) as RecentEntry[]).reverse();
+}
+
 export async function fetchIssue(issueId: string): Promise<IssueData> {
   const { data, error } = await supabase
     .from('issues')

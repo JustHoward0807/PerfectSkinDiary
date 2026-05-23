@@ -194,7 +194,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 60 }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.greeting}>Good Morning</Text>
@@ -248,7 +248,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   root:    { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 16, paddingBottom: 40, gap: 20 },
+  content: { paddingHorizontal: 16, gap: 20 },
   greeting: { fontSize: 34, fontWeight: '700', color: C.label, letterSpacing: 0.4 },
   loader:   { marginVertical: 32 },
   emptyText: { fontSize: 14, color: C.secondaryLabel, textAlign: 'center', marginVertical: 8 },
