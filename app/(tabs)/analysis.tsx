@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
 import { fetchRecentEntries, type RecentEntry } from '../../src/services/supabase/issueService';
 import { generateSkinPdf, sharePdfFile } from '../../src/services/pdf/exportPdf';
@@ -262,15 +263,25 @@ export default function AnalysisScreen() {
   const [exporting, setExporting] = useState(false);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
 
+  const isFirstMount = useRef(true);
+
   useEffect(() => {
     if (!user) return;
-    // Fetch 30 raw entries to ensure ≥10 unique dates after deduplication
-    // (users with multiple active tracks can have several entries per calendar day)
     fetchRecentEntries(user.id, 30)
       .then(raw => setEntries(deduplicateByDate(raw)))
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
   }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) { isFirstMount.current = false; return; }
+      if (!user) return;
+      fetchRecentEntries(user.id, 30)
+        .then(raw => setEntries(deduplicateByDate(raw)))
+        .catch(() => {});
+    }, [user]),
+  );
 
   async function handleExport() {
     if (!user) return;
