@@ -8,19 +8,43 @@ export type IssueListItem = {
   description: string | null;
   created_at: string | null;
   entries: { entry_date: string }[];
+  products: { name: string; routine: 'am' | 'pm' }[];
 };
 
 export async function fetchUserIssues(userId: string): Promise<IssueListItem[]> {
   const { data, error } = await supabase
     .from('issues')
-    .select('id, title, description, created_at, entries(entry_date)')
+    .select('id, title, description, created_at, entries(entry_date), products(name, routine)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`fetchUserIssues failed: ${error.message}`);
   return (data ?? []) as unknown as IssueListItem[];
 }
 export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores' | 'llm_summary'>;
-export type Product = Pick<Tables<'products'>, 'name' | 'brand' | 'category'>;
+export type Product = {
+  id: string;
+  name: string;
+  routine: 'am' | 'pm';
+};
+
+export type RecentEntry = {
+  id: string;
+  entry_date: string;
+  photo_url: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  analysis_scores: any;
+};
+
+export async function fetchRecentEntries(userId: string, limit = 5): Promise<RecentEntry[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, entry_date, photo_url, analysis_scores')
+    .eq('user_id', userId)
+    .order('entry_date', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`fetchRecentEntries failed: ${error.message}`);
+  return ((data ?? []) as RecentEntry[]).reverse();
+}
 
 export async function fetchIssue(issueId: string): Promise<IssueData> {
   const { data, error } = await supabase
@@ -55,10 +79,29 @@ export async function fetchEntry(entryId: string): Promise<EntryData> {
 export async function fetchProducts(issueId: string): Promise<Product[]> {
   const { data, error } = await supabase
     .from('products')
-    .select('name, brand, category')
+    .select('id, name, routine')
     .eq('issue_id', issueId);
   if (error) throw new Error(`fetchProducts failed: ${error.message}`);
   return (data ?? []) as Product[];
+}
+
+export async function addProduct(
+  issueId: string,
+  name: string,
+  routine: 'am' | 'pm',
+): Promise<Product> {
+  const { data, error } = await supabase
+    .from('products')
+    .insert({ issue_id: issueId, name: name.trim(), routine })
+    .select('id, name, routine')
+    .single();
+  if (error) throw new Error(`addProduct failed: ${error.message}`);
+  return data as Product;
+}
+
+export async function removeProduct(productId: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', productId);
+  if (error) throw new Error(`removeProduct failed: ${error.message}`);
 }
 
 // Recursively lists and deletes every file under a storage path prefix (best-effort)
