@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, Alert,
+  View, Text, ScrollView, StyleSheet, Pressable, Alert, TextInput,
   PanResponder, Animated, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -9,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '../../theme';
 import { Header, CameraModal, ComparisonFullscreen } from '../ui';
-import { fetchIssue, fetchEntries, deleteIssueAndEntries, type IssueData, type EntryData } from '../../services/supabase/issueService';
+import { fetchIssue, fetchEntries, fetchProducts, addProduct, removeProduct, deleteIssueAndEntries, type IssueData, type EntryData, type Product } from '../../services/supabase/issueService';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
 import { computeOverallScore } from '../../utils/skinScore';
@@ -43,11 +43,17 @@ export default function TrackDetailAndroid() {
 
   const [issue, setIssue] = useState<IssueData | null>(null);
   const [entries, setEntries] = useState<EntryData[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [amExpanded, setAmExpanded] = useState(false);
+  const [pmExpanded, setPmExpanded] = useState(false);
+  const [amInput, setAmInput] = useState('');
+  const [pmInput, setPmInput] = useState('');
+  const [productSaving, setProductSaving] = useState(false);
   const isFirstMount = useRef(true);
 
   const handleDelete = () => {
@@ -100,12 +106,14 @@ export default function TrackDetailAndroid() {
 
     (async () => {
       try {
-        const [issueData, entriesData] = await Promise.all([
+        const [issueData, entriesData, productsData] = await Promise.all([
           fetchIssue(issueId),
           fetchEntries(issueId),
+          fetchProducts(issueId),
         ]);
         setIssue(issueData);
         setEntries(entriesData);
+        setProducts(productsData);
       } catch (e) { console.error('[TrackDetail] fetch failed:', e); }
       finally { setLoading(false); }
     })();
@@ -115,9 +123,29 @@ export default function TrackDetailAndroid() {
     useCallback(() => {
       if (isFirstMount.current) { isFirstMount.current = false; return; }
       if (!issueId || issueId === DEMO_ISSUE_ID) return;
-      fetchEntries(issueId).then(setEntries).catch(console.error);
+      Promise.all([fetchEntries(issueId), fetchProducts(issueId)])
+        .then(([e, p]) => { setEntries(e); setProducts(p); })
+        .catch(console.error);
     }, [issueId])
   );
+
+  const handleAddProduct = async (routine: 'am' | 'pm') => {
+    const name = (routine === 'am' ? amInput : pmInput).trim();
+    if (!name || !issueId) return;
+    setProductSaving(true);
+    try {
+      const newProduct = await addProduct(issueId, name, routine);
+      setProducts(prev => [...prev, newProduct]);
+      if (routine === 'am') { setAmInput(''); setAmExpanded(false); }
+      else { setPmInput(''); setPmExpanded(false); }
+    } catch { Alert.alert('Error', 'Could not add product.'); }
+    finally { setProductSaving(false); }
+  };
+
+  const handleRemoveProduct = async (productId: string) => {
+    setProducts(prev => prev.filter(p => p.id !== productId));
+    try { await removeProduct(productId); } catch { /* best-effort */ }
+  };
 
   // ── Slider ──
   const estW = screenWidth - 32;
@@ -201,6 +229,7 @@ export default function TrackDetailAndroid() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottom + 96 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
 
         {/* ── Image comparison slider ── */}
@@ -290,6 +319,66 @@ export default function TrackDetailAndroid() {
             )}
           </View>
         </View>
+
+        {/* ── AM / PM Routine ── */}
+        {(['am', 'pm'] as const).map(routine => {
+          const isAm = routine === 'am';
+          const expanded = isAm ? amExpanded : pmExpanded;
+          const input = isAm ? amInput : pmInput;
+          const setExpanded = isAm ? setAmExpanded : setPmExpanded;
+          const setInput = isAm ? setAmInput : setPmInput;
+          const routineProducts = products.filter(p => p.routine === routine);
+          return (
+            <View key={routine} style={styles.routineCard}>
+              <View style={styles.routineHeader}>
+                <Text style={styles.routineTitle}>{isAm ? 'AM' : 'PM'} ROUTINE</Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => { setExpanded(e => !e); if (!expanded) setInput(''); }}
+                  android_ripple={{ color: 'rgba(0,0,0,0.1)', radius: 16 }}
+                >
+                  <Ionicons
+                    name={expanded ? 'close-circle-outline' : 'add-circle-outline'}
+                    size={22}
+                    color={Colors.primary}
+                  />
+                </Pressable>
+              </View>
+              {routineProducts.length === 0 && !expanded && (
+                <Text style={styles.routineEmpty}>No products added yet</Text>
+              )}
+              {routineProducts.map(p => (
+                <View key={p.id} style={styles.productRow}>
+                  <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>
+                  <Pressable hitSlop={8} onPress={() => handleRemoveProduct(p.id)}>
+                    <Ionicons name="close" size={16} color={Colors.onSurfaceVariant} />
+                  </Pressable>
+                </View>
+              ))}
+              {expanded && (
+                <View style={styles.addRow}>
+                  <TextInput
+                    style={styles.productInput}
+                    value={input}
+                    onChangeText={setInput}
+                    placeholder="Product name…"
+                    placeholderTextColor={Colors.onSurfaceVariant}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={() => handleAddProduct(routine)}
+                  />
+                  <Pressable
+                    style={[styles.addBtn, (!input.trim() || productSaving) && styles.addBtnDisabled]}
+                    onPress={() => handleAddProduct(routine)}
+                    disabled={!input.trim() || productSaving}
+                  >
+                    <Text style={styles.addBtnText}>Add</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          );
+        })}
 
         {/* ── Daily log ── */}
         <View style={styles.sectionHeader}>
@@ -498,6 +587,76 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Colors.onSurfaceVariant,
+  },
+
+  // Routine card
+  routineCard: {
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  routineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  routineTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.onSurfaceVariant,
+    letterSpacing: 0.8,
+  },
+  routineEmpty: {
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+    fontStyle: 'italic',
+  },
+  productRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  productName: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  productInput: {
+    flex: 1,
+    height: 40,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    color: Colors.onSurface,
+    backgroundColor: Colors.surface,
+  },
+  addBtn: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addBtnDisabled: { opacity: 0.4 },
+  addBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.onPrimary,
   },
 
   // Daily log

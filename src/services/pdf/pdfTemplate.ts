@@ -337,12 +337,6 @@ h1,h2 { margin:0; }
 .doc-title .d { font-size:9.5px; color:#5c6b7a; margin-top:2px; }
 .section-h { font-size:12px; font-weight:700; color:#0d5c63; text-transform:uppercase; letter-spacing:1px; margin:16px 0 8px; padding-bottom:4px; border-bottom:1px solid #e0e9ea; page-break-after:avoid; }
 .section-h:first-child { margin-top:0; }
-.routine { display:flex; gap:10px; }
-.rt { flex:1; border:1px solid #eef2f4; border-radius:7px; padding:8px 11px; background:#fbfcfc; }
-.rt-h { font-size:9px; font-weight:700; letter-spacing:1.2px; margin-bottom:4px; }
-.rt-h.am { color:#9a6608; } .rt-h.pm { color:#5a4b9c; }
-.rt ul { margin:0; padding-left:15px; } .rt li { font-size:10px; margin-bottom:2px; }
-.rt-note { font-size:8.6px; color:#64737f; font-style:italic; margin-top:5px; }
 .snap { display:flex; gap:11px; margin-bottom:4px; }
 .stat { flex:1; border:1px solid #e0e9ea; border-radius:8px; padding:11px 13px; background:#f7fafa; }
 .stat-l { font-size:8.6px; text-transform:uppercase; letter-spacing:.7px; color:#64737f; }
@@ -409,13 +403,6 @@ td.net.up { color:#1e7a5b; } td.net.down { color:#c0473e; } td.net.flat { color:
   <div class="doc-title"><div class="t serif">Skin Progress Summary</div>
     <div class="d">Selected entries prepared for clinical review</div></div>
 </div>
-
-<div class="section-h">Regimen for this track</div>
-<div class="routine">
-  <div class="rt"><div class="rt-h am">AM</div><ul><li>Gentle gel cleanser</li><li>Vitamin C serum</li><li>Ceramide moisturiser</li><li>SPF 50</li></ul></div>
-  <div class="rt"><div class="rt-h pm">PM</div><ul><li>Gentle gel cleanser</li><li>Ceramide moisturiser</li><li>Tretinoin 0.025% (alt. nights)</li></ul></div>
-</div>
-<div class="rt-note">Regimen recorded by the patient for the whole tracked period (not per individual day).</div>
 
 <div class="section-h">At a glance</div>
 <div class="snap">

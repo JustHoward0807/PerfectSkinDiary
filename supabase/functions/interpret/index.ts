@@ -50,7 +50,7 @@ interface TrendEntry {
   scores: Record<string, unknown>;
 }
 
-function buildTrendPrompt(entries: TrendEntry[], products: { name: string; brand: string | null }[]): string {
+function buildTrendPrompt(entries: TrendEntry[], products: { name: string; routine: 'am' | 'pm' }[]): string {
   const n = entries.length;
   const firstDate = entries[0].date;
   const lastDate  = entries[n - 1].date;
@@ -94,7 +94,7 @@ function buildTrendPrompt(entries: TrendEntry[], products: { name: string; brand
   const table = [header, separator, overallRow, skinAgeRow, ...rows].join('\n');
 
   const productLine = products.length > 0
-    ? `Products used: ${products.map(p => p.name + (p.brand ? ` (${p.brand})` : '')).join(', ')}.`
+    ? `Products used: ${products.map(p => p.name).join(', ')}.`
     : '';
 
   return `Skin progress data — ${n} entries from ${firstDate} to ${lastDate}.
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       // Trend mode (new)
       entries?: TrendEntry[];
       // Shared
-      products: Array<{ name: string; brand: string | null; category: string | null }>;
+      products: Array<{ name: string; routine: 'am' | 'pm' }>;
     };
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -144,9 +144,14 @@ Deno.serve(async (req) => {
 
     const isTrendMode = Array.isArray(body.entries) && body.entries.length > 0;
 
+    const products = body.products ?? [];
+    const webSearchTools = products.length > 0
+      ? [{ type: 'web_search_20250305', name: 'web_search' }]
+      : [];
+
     if (isTrendMode) {
       // ── Trend mode: multi-entry progress analysis ──
-      const userPrompt = buildTrendPrompt(body.entries!, body.products ?? []);
+      const userPrompt = buildTrendPrompt(body.entries!, products);
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -160,12 +165,16 @@ Deno.serve(async (req) => {
           max_tokens: 400,
           system: 'You are a factual skin-health assistant. Be concise, warm, and clinically accurate. Never give medical advice or recommend new products.',
           messages: [{ role: 'user', content: userPrompt }],
+          ...(webSearchTools.length > 0 ? { tools: webSearchTools } : {}),
         }),
       });
 
       if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
       const json = await res.json();
-      const raw: string = (json.content[0].text as string).trim();
+      const raw: string = (
+        (json.content as Array<{ type: string; text?: string }>)
+          .find(b => b.type === 'text')?.text ?? ''
+      ).trim();
 
       const bullets = raw
         .split('\n')
@@ -178,13 +187,12 @@ Deno.serve(async (req) => {
       });
 
     } else {
-      // ── Single-entry mode (unchanged) ──
+      // ── Single-entry mode ──
       const scores = body.scores ?? {};
-      const products = body.products ?? [];
 
       const metricLines = buildMetricLines(scores);
       const productLine = products.length > 0
-        ? `The user currently uses: ${products.map(p => `${p.name}${p.brand ? ` (${p.brand})` : ''}`).join(', ')}.`
+        ? `The user currently uses: ${products.map(p => p.name).join(', ')}.`
         : 'The user has not listed any skincare products.';
 
       const userPrompt = `Skin analysis scores (0–100 scale, higher is better):
@@ -206,12 +214,16 @@ Write exactly 3 short sentences that help the user understand their skin's curre
           max_tokens: 200,
           system: 'You are a factual skin-health assistant. Be concise, warm, and clear. Never give medical advice or recommend new products.',
           messages: [{ role: 'user', content: userPrompt }],
+          ...(webSearchTools.length > 0 ? { tools: webSearchTools } : {}),
         }),
       });
 
       if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
       const json = await res.json();
-      const summary: string = (json.content[0].text as string).trim();
+      const summary: string = (
+        (json.content as Array<{ type: string; text?: string }>)
+          .find(b => b.type === 'text')?.text ?? ''
+      ).trim();
 
       return new Response(JSON.stringify({ summary }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },

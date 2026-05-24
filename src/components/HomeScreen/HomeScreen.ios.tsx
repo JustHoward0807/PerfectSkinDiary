@@ -27,6 +27,42 @@ const BODY_R       = Radius.md as number; // 16 — body corner radius
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function renderRoutinePreview(products: { name: string; routine: 'am' | 'pm' }[]) {
+  const am = products.filter(p => p.routine === 'am');
+  const pm = products.filter(p => p.routine === 'pm');
+  if (!am.length && !pm.length) {
+    return <Text style={routineStyles.noRoutine}>No routine set</Text>;
+  }
+  return (
+    <View style={routineStyles.preview}>
+      {am.length > 0 && (
+        <View style={routineStyles.group}>
+          <Text style={routineStyles.label}>AM</Text>
+          {am.map((p, i) => (
+            <Text key={i} style={routineStyles.product} numberOfLines={1}>{p.name}</Text>
+          ))}
+        </View>
+      )}
+      {pm.length > 0 && (
+        <View style={routineStyles.group}>
+          <Text style={routineStyles.label}>PM</Text>
+          {pm.map((p, i) => (
+            <Text key={i} style={routineStyles.product} numberOfLines={1}>{p.name}</Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const routineStyles = StyleSheet.create({
+  noRoutine: { fontSize: 13, color: C.secondaryLabel, fontStyle: 'italic' },
+  preview:   { gap: 6 },
+  group:     { gap: 1 },
+  label:     { fontSize: 11, fontWeight: '700', color: C.label, letterSpacing: 0.4 },
+  product:   { fontSize: 13, color: C.secondaryLabel, lineHeight: 18 },
+});
+
 function formatCreatedDate(isoDate: string | null): string {
   if (!isoDate) return '';
   return new Date(isoDate).toLocaleDateString('en-US', {
@@ -95,8 +131,8 @@ function FolderCard({ track }: { track: IssueListItem }) {
   const cardW = screenW - 32; // 16pt horizontal padding on each side
 
   // Seed with a close estimate so the border appears on the first frame
-  const hasDesc = !!track.description;
-  const [totalH, setTotalH] = useState(TAB_H + (hasDesc ? 142 : 98));
+  const productCount = track.products?.length ?? 0;
+  const [totalH, setTotalH] = useState(TAB_H + 88 + productCount * 18);
 
   return (
     <Pressable
@@ -129,9 +165,7 @@ function FolderCard({ track }: { track: IssueListItem }) {
               <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
               <Text style={styles.trackDate}>{formatCreatedDate(track.created_at)}</Text>
             </View>
-            {track.description ? (
-              <Text style={styles.trackDesc} numberOfLines={2}>{track.description}</Text>
-            ) : null}
+            {renderRoutinePreview(track.products ?? [])}
             <View style={styles.bottomRow}>
               <Text style={styles.lastEntry}>{getLastEntryText(track.entries)}</Text>
               <Ionicons name="chevron-forward" size={16} color={C.fill} />
@@ -288,7 +322,6 @@ const styles = StyleSheet.create({
   },
   trackTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: C.label, lineHeight: 22 },
   trackDate:  { fontSize: 13, color: C.secondaryLabel, flexShrink: 0, lineHeight: 22 },
-  trackDesc:  { fontSize: 14, color: C.secondaryLabel, lineHeight: 20 },
   bottomRow: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginTop: 4,
