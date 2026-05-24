@@ -3,7 +3,7 @@
     "name": "PerfectSkinDiary",
     "slug": "PerfectSkinDiary",
     "scheme": "perfectskindiary",
-    "version": "1.0.0",
+    "version": "0.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/PerfectSkinDiary.icon",
       "infoPlist": {
         "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis."
       }
@@ -22,7 +23,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#FDF8F3"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

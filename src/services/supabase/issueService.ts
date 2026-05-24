@@ -2,7 +2,49 @@ import { supabase } from './supabase';
 import type { Json, Tables } from '../../types/database.types';
 
 export type IssueData = Pick<Tables<'issues'>, 'id' | 'title' | 'goal_image_url' | 'target_concerns'>;
-export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores'>;
+export type IssueListItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  created_at: string | null;
+  entries: { entry_date: string }[];
+  products: { name: string; routine: 'am' | 'pm' }[];
+};
+
+export async function fetchUserIssues(userId: string): Promise<IssueListItem[]> {
+  const { data, error } = await supabase
+    .from('issues')
+    .select('id, title, description, created_at, entries(entry_date), products(name, routine)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`fetchUserIssues failed: ${error.message}`);
+  return (data ?? []) as unknown as IssueListItem[];
+}
+export type EntryData = Pick<Tables<'entries'>, 'id' | 'entry_date' | 'photo_url' | 'analysis_scores' | 'delta_scores' | 'llm_summary'>;
+export type Product = {
+  id: string;
+  name: string;
+  routine: 'am' | 'pm';
+};
+
+export type RecentEntry = {
+  id: string;
+  entry_date: string;
+  photo_url: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  analysis_scores: any;
+};
+
+export async function fetchRecentEntries(userId: string, limit = 5): Promise<RecentEntry[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, entry_date, photo_url, analysis_scores')
+    .eq('user_id', userId)
+    .order('entry_date', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`fetchRecentEntries failed: ${error.message}`);
+  return ((data ?? []) as RecentEntry[]).reverse();
+}
 
 export async function fetchIssue(issueId: string): Promise<IssueData> {
   const { data, error } = await supabase
@@ -27,11 +69,63 @@ export async function fetchEntries(issueId: string): Promise<EntryData[]> {
 export async function fetchEntry(entryId: string): Promise<EntryData> {
   const { data, error } = await supabase
     .from('entries')
-    .select('id, entry_date, photo_url, analysis_scores, delta_scores')
+    .select('id, entry_date, photo_url, analysis_scores, delta_scores, llm_summary')
     .eq('id', entryId)
     .single();
   if (error) throw new Error(`fetchEntry failed: ${error.message}`);
   return data as EntryData;
+}
+
+export async function fetchProducts(issueId: string): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, name, routine')
+    .eq('issue_id', issueId);
+  if (error) throw new Error(`fetchProducts failed: ${error.message}`);
+  return (data ?? []) as Product[];
+}
+
+export async function addProduct(
+  issueId: string,
+  name: string,
+  routine: 'am' | 'pm',
+): Promise<Product> {
+  const { data, error } = await supabase
+    .from('products')
+    .insert({ issue_id: issueId, name: name.trim(), routine })
+    .select('id, name, routine')
+    .single();
+  if (error) throw new Error(`addProduct failed: ${error.message}`);
+  return data as Product;
+}
+
+export async function removeProduct(productId: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', productId);
+  if (error) throw new Error(`removeProduct failed: ${error.message}`);
+}
+
+// Recursively lists and deletes every file under a storage path prefix (best-effort)
+async function deleteStorageFolder(prefix: string): Promise<void> {
+  const { data: items } = await supabase.storage.from('photos').list(prefix);
+  if (!items?.length) return;
+
+  const filePaths: string[] = [];
+  const subfolderNames: string[] = [];
+
+  for (const item of items) {
+    if (item.id !== null) {
+      filePaths.push(`${prefix}/${item.name}`);
+    } else {
+      subfolderNames.push(item.name);
+    }
+  }
+
+  if (filePaths.length) {
+    await supabase.storage.from('photos').remove(filePaths).catch(() => {});
+  }
+  for (const name of subfolderNames) {
+    await deleteStorageFolder(`${prefix}/${name}`);
+  }
 }
 
 interface CreateIssueParams {
@@ -40,6 +134,38 @@ interface CreateIssueParams {
   targetConcerns: string[];
   goalImageUrl: string;
   baselineScores: unknown;
+}
+
+export async function deleteEntry(entryId: string, photoUrl: string): Promise<void> {
+  // Delete the entire date folder (photo + all mask files) — best-effort
+  const marker = '/object/public/photos/';
+  const idx = photoUrl.indexOf(marker);
+  if (idx !== -1) {
+    const fullPath = photoUrl.slice(idx + marker.length);
+    const folderPrefix = fullPath.substring(0, fullPath.lastIndexOf('/'));
+    await deleteStorageFolder(folderPrefix).catch(() => {});
+  }
+  const { error } = await supabase.from('entries').delete().eq('id', entryId);
+  if (error) throw new Error(`deleteEntry failed: ${error.message}`);
+}
+
+export async function deleteIssue(issueId: string): Promise<void> {
+  const { error } = await supabase.from('issues').delete().eq('id', issueId);
+  if (error) throw new Error(`deleteIssue failed: ${error.message}`);
+}
+
+export async function deleteIssueAndEntries(issueId: string): Promise<void> {
+  // Fetch user_id to build the storage prefix, then wipe the entire issue folder
+  const { data: issueRow } = await supabase
+    .from('issues').select('user_id').eq('id', issueId).single();
+  if (issueRow?.user_id) {
+    await deleteStorageFolder(`${issueRow.user_id}/${issueId}`).catch(() => {});
+  }
+  // Delete DB rows (entries first — no cascade)
+  const { error: entryError } = await supabase.from('entries').delete().eq('issue_id', issueId);
+  if (entryError) throw new Error(`deleteIssueAndEntries (entries) failed: ${entryError.message}`);
+  const { error: issueError } = await supabase.from('issues').delete().eq('id', issueId);
+  if (issueError) throw new Error(`deleteIssueAndEntries (issue) failed: ${issueError.message}`);
 }
 
 export async function createIssue(params: CreateIssueParams): Promise<string> {
@@ -58,15 +184,44 @@ export async function createIssue(params: CreateIssueParams): Promise<string> {
   return data.id;
 }
 
+interface CreateEntryParams {
+  issueId: string;
+  userId: string;
+  photoUrl: string;
+  analysisScores: unknown;
+  entryDate: string;
+  llmSummary?: string | null;
+}
+
+export async function createEntry(params: CreateEntryParams): Promise<string> {
+  const { data, error } = await supabase
+    .from('entries')
+    .insert({
+      issue_id: params.issueId,
+      user_id: params.userId,
+      entry_date: params.entryDate,
+      photo_url: params.photoUrl,
+      analysis_scores: params.analysisScores as Json,
+      delta_scores: null,
+      llm_summary: params.llmSummary ?? null,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(`createEntry failed: ${error.message}`);
+  return data.id;
+}
+
 interface CreateDayOneEntryParams {
   issueId: string;
   userId: string;
   photoUrl: string;
   analysisScores: unknown;
+  entryDate: string;
+  llmSummary?: string | null;
 }
 
 export async function createDayOneEntry(params: CreateDayOneEntryParams): Promise<void> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = params.entryDate;
   const { error } = await supabase
     .from('entries')
     .insert({
@@ -76,6 +231,7 @@ export async function createDayOneEntry(params: CreateDayOneEntryParams): Promis
       photo_url: params.photoUrl,
       analysis_scores: params.analysisScores as Json,
       delta_scores: null,
+      llm_summary: params.llmSummary ?? null,
     });
   if (error) throw new Error(`createDayOneEntry failed: ${error.message}`);
 }
