@@ -10,6 +10,42 @@ import { useWeather } from '../../hooks/useWeather';
 
 const _cache = new Map<string, IssueListItem[]>();
 
+function renderRoutinePreview(products: { name: string; routine: 'am' | 'pm' }[]) {
+  const am = products.filter(p => p.routine === 'am');
+  const pm = products.filter(p => p.routine === 'pm');
+  if (!am.length && !pm.length) {
+    return <Text style={routineStyles.noRoutine}>No routine set</Text>;
+  }
+  return (
+    <View style={routineStyles.preview}>
+      {am.length > 0 && (
+        <View style={routineStyles.group}>
+          <Text style={routineStyles.label}>AM</Text>
+          {am.map((p, i) => (
+            <Text key={i} style={routineStyles.product} numberOfLines={1}>{p.name}</Text>
+          ))}
+        </View>
+      )}
+      {pm.length > 0 && (
+        <View style={routineStyles.group}>
+          <Text style={routineStyles.label}>PM</Text>
+          {pm.map((p, i) => (
+            <Text key={i} style={routineStyles.product} numberOfLines={1}>{p.name}</Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const routineStyles = StyleSheet.create({
+  noRoutine: { fontSize: 13, color: C.onSurfaceVariant, fontStyle: 'italic' },
+  preview:   { gap: 6 },
+  group:     { gap: 1 },
+  label:     { fontSize: 11, fontWeight: '700', color: C.onSurface, letterSpacing: 0.4 },
+  product:   { fontSize: 13, color: C.onSurfaceVariant, lineHeight: 18 },
+});
+
 function formatCreatedDate(isoDate: string | null): string {
   if (!isoDate) return '';
   return new Date(isoDate).toLocaleDateString('en-US', {
@@ -158,9 +194,7 @@ export default function HomeScreen() {
                       <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
                       <Text style={styles.trackDate}>{formatCreatedDate(track.created_at)}</Text>
                     </View>
-                    {track.description ? (
-                      <Text style={styles.trackDesc} numberOfLines={2}>{track.description}</Text>
-                    ) : null}
+                    {renderRoutinePreview(track.products ?? [])}
                     <View style={styles.bottomRow}>
                       <Text style={styles.lastEntry}>{getLastEntryText(track.entries)}</Text>
                       <Ionicons name="chevron-forward" size={16} color={C.primary} />
@@ -261,11 +295,6 @@ const styles = StyleSheet.create({
     color: C.onSurfaceVariant,
     flexShrink: 0,
     lineHeight: 22,
-  },
-  trackDesc: {
-    fontSize: 14,
-    color: C.onSurfaceVariant,
-    lineHeight: 20,
   },
   bottomRow: {
     flexDirection: 'row',

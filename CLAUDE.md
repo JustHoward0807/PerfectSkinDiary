@@ -196,6 +196,37 @@ To skip API calls during development, set the track name to `"demo"` (case-insen
 
 Logic lives in `src/services/demoMode.ts`. Asset files are in `demo/` at the repo root.
 
+### interpret Edge Function — dual-mode API
+
+`supabase/functions/interpret/index.ts` handles two distinct request shapes:
+
+| Mode | Request body | Response |
+|---|---|---|
+| Single-entry | `{ scores: Record<string, unknown>, products: [...] }` | `{ summary: string }` — 3-sentence current-state summary |
+| Trend (multi-entry) | `{ entries: [{ date, scores }, ...], products: [...] }` | `{ bullets: string[] }` — 4 one-sentence trend insights |
+
+Detection: `Array.isArray(body.entries) && body.entries.length > 0` routes to trend mode; everything else falls through to single-entry mode. Both modes are backward-compatible — do not remove the single-entry branch; it is used by the per-entry LLM summary flow.
+
+**Web search** — the `web_search_20250305` tool is conditionally passed to the Claude API only when `products.length > 0`. This lets Claude look up product ingredient info for richer insights without incurring search costs on empty routines. The response `content` array may contain `tool_use`/`tool_result` blocks before the final `text` block; always extract the text block with `.find(b => b.type === 'text')`, never `content[0].text`.
+
+**Product type** — `products` items are `{ name: string; routine: 'am' | 'pm' }`. The `brand` and `category` fields were removed from the schema.
+
+### Bottom safe area pattern
+
+Tab screens must account for the native tab bar in their scroll content. Apply this to every tab screen's `contentContainerStyle`:
+
+```ts
+contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 60 }]}
+```
+
+Remove any hardcoded `paddingBottom` from the static `content` style — the inline value replaces it. On Android, also render a background-coloured spacer View below the ScrollView to fill the system navigation bar area:
+
+```tsx
+{Platform.OS === 'android' && insets.bottom > 0 && (
+  <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
+)}
+```
+
 ### Security model
 
 The RN client holds only the Supabase public anon key. All calls to YouCam and Claude go through **Supabase Edge Functions** which hold secrets server-side. Never put `YOUCAM_API_KEY` or `ANTHROPIC_API_KEY` in the app bundle.
@@ -247,8 +278,6 @@ CREATE TABLE issues (
   target_concerns  JSONB NOT NULL,    -- ["wrinkle", "pores", "redness", ...]
   goal_image_url   TEXT,              -- Supabase Storage URL — set on Day 1, locked forever
   baseline_scores  JSONB,             -- Day 1 AI-Skin-Analysis scores
-  am_routine       JSONB,             -- [{ product: "Vitamin C Serum", brand: "..." }]
-  pm_routine       JSONB,             -- [{ product: "Azelaic Acid 10%", brand: "..." }]
   created_at       TIMESTAMPTZ DEFAULT now()
 );
 
@@ -267,12 +296,12 @@ CREATE TABLE entries (
   UNIQUE(issue_id, entry_date)          -- Enforces 1 entry per day per issue
 );
 
--- Products used for a specific issue/track
+-- AM/PM skincare products for a specific track
+-- Deleted automatically via ON DELETE CASCADE when the parent issue is deleted
 CREATE TABLE products (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  issue_id  UUID REFERENCES issues NOT NULL,
+  issue_id  UUID REFERENCES issues(id) ON DELETE CASCADE NOT NULL,
   name      TEXT NOT NULL,
-  brand     TEXT,
-  category  TEXT                        -- "serum", "spf", "moisturiser", etc.
+  routine   TEXT NOT NULL CHECK (routine IN ('am', 'pm'))
 );
 ```
