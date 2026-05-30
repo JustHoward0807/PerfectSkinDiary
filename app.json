@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.perfectskindiary.app",
       "buildNumber": "1",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "icon": "./assets/PerfectSkinDiary.icon",
       "infoPlist": {
         "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis.",
@@ -45,7 +46,12 @@
       "expo-router",
       "expo-camera",
       "expo-font",
-      "expo-location"
+      "expo-location",
+      "expo-apple-authentication",
+      ["react-native-iap", { "playServiceVersion": "20.1.0" }],
+      ["@react-native-google-signin/google-signin", {
+        "iosUrlScheme": "com.googleusercontent.apps.790615746992-anvu3ivnf4d3apr16au8tcpa3u3ckjas"
+      }]
     ],
     "extra": {
       "router": {},

@@ -155,6 +155,23 @@ Each entry in the PDF contains:
 
 ---
 
+### 🔐 Account & Sign-In
+
+The app starts anonymously — no sign-up required. Users are prompted to link their account via **Google Sign-In** (Android + iOS) or **Apple Sign-In** (iOS only) before making their first In-App Purchase. Linking upgrades the anonymous session to a permanent identity without changing the user ID, so all existing coins and tracking data carry over seamlessly.
+
+- Sign-In available from Settings → "Sign In & Secure Account"
+- After sign-in, the profile card shows the user's display name / email
+- On reinstall, signing in with the same provider restores the existing account and wallet
+
+### 💰 Coin Wallet & In-App Purchases
+
+Each skin analysis costs **1 coin**. New users get a **3-day free trial** (server-enforced) during which analyses are free.
+
+- Coin balance displayed in Settings → "My Wallet" and on the Wallet screen
+- Top-up packages configured in Supabase (`coin_packages` table) — amounts and badges update instantly without an app release; prices are fetched live from the App Store / Play Store at runtime
+- **Redeem codes** — admin-issued promo codes redeemable from the Wallet screen
+- Coin is deducted server-side before each analysis (atomic SQL function, double-spend protected)
+
 ### ☀️ UV Index + SPF Widget
 
 - Home screen top-right corner
@@ -188,6 +205,9 @@ See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 | Notifications | expo-notifications |
 | Location | expo-location (with manual city fallback) |
 | PDF Export | react-native-html-to-pdf |
+| In-App Purchase | react-native-iap (iOS StoreKit + Android Billing) |
+| Google Sign-In | @react-native-google-signin/google-signin |
+| Apple Sign-In | expo-apple-authentication (iOS only) |
 
 **Platform-specific UI** — platform implementations live in dedicated `src/ios/` and `src/android/` source trees. `src/components/` holds thin bridge files (`.ios.tsx` / `.android.tsx`) that re-export from the correct platform folder — Metro dispatches automatically, no runtime `Platform.OS` checks in the component layer.
 
@@ -314,6 +334,21 @@ AI-Skin-Analysis     AI-Skin-Simulation        Claude API
 ```
 Tab Bar: Home | Analysis | Settings
 
+Settings Screen
+├── Profile card (signed-in users only — shows Google/Apple display name)
+├── Sign In & Secure Account (anonymous users only) → EmailGateSheet slide-up
+├── My Wallet: X coins → /wallet
+├── About App / Terms / Privacy Policy
+└── Delete Account
+
+Wallet Screen (/wallet)
+├── Current balance card (coin count + trial badge if in trial)
+├── Top-up packages (prices fetched live from App Store / Play Store)
+│     tap → EmailGateSheet if anonymous, else IAP purchase flow
+├── Redeem Code input → redeem-code Edge Function
+└── Transaction feedback (Alert on success / error)
+
+
 Home Screen
 ├── UV Index Widget (top right) → SPF recommendation
 ├── Track List
@@ -347,10 +382,12 @@ Track Detail Screen  ← per-track hub
 Add Entry Screen  ← camera / upload flow
 ├── Take / upload selfie
 └── [Analyse] →
-      Upload → Edge Function → AI-Skin-Analysis
-      Compute delta vs yesterday
-      Edge Function → Claude (summary)
-      Store entry → navigate back to Track Detail Screen
+      ① check-and-deduct Edge Function (trial check / deduct 1 coin)
+         → if insufficient: Alert "Buy Coins" → /wallet
+      ② Upload → Edge Function → AI-Skin-Analysis
+      ③ Compute delta vs yesterday
+      ④ Edge Function → Claude (summary)
+      ⑤ Store entry → navigate back to Track Detail Screen
 
 Entry Detail Screen  ← single day result
 ├── Original photo (that day)
@@ -390,13 +427,20 @@ npx expo start
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_KEY=your-publishable-key
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID (Google Cloud Console)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # Google OAuth iOS client ID (for native sign-in flow)
 ```
 
 ### Supabase Edge Function Secrets (server-side only)
 ```
 YOUCAM_API_KEY=your-youcam-key
 ANTHROPIC_API_KEY=your-claude-key
+APPLE_SHARED_SECRET=           # App Store Connect → In-App Purchases → App-Specific Shared Secret
+GOOGLE_SERVICE_ACCOUNT_JSON=   # Google Play Console → Setup → API access → service account JSON key
+ANDROID_PACKAGE_NAME=          # e.g. com.perfectskindiary.app
 ```
+
+> **EAS Build required** — Google Sign-In and IAP use native modules (`@react-native-google-signin/google-signin`, `react-native-iap`) that are incompatible with Expo Go. Use `eas build --profile preview` for development builds on device.
 
 ---
 

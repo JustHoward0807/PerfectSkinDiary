@@ -132,12 +132,116 @@ export type Database = {
           },
         ]
       }
+      wallets: {
+        Row: {
+          user_id:      string
+          coin_balance: number
+          created_at:   string
+          updated_at:   string
+        }
+        Insert: {
+          user_id:      string
+          coin_balance?: number
+          created_at?:  string
+          updated_at?:  string
+        }
+        Update: {
+          user_id?:     string
+          coin_balance?: number
+          created_at?:  string
+          updated_at?:  string
+        }
+        Relationships: []
+      }
+      coin_packages: {
+        Row: {
+          id:                     string
+          product_id:             string
+          display_name:           string
+          coin_amount:            number
+          bonus_coins:            number
+          badge:                  string | null
+          badge_style:            string | null
+          is_featured:            boolean
+          original_price_display: string | null
+          sort_order:             number
+          is_active:              boolean
+          created_at:             string
+        }
+        Insert: {
+          id?:                    string
+          product_id:             string
+          display_name:           string
+          coin_amount:            number
+          bonus_coins?:           number
+          badge?:                 string | null
+          badge_style?:           string | null
+          is_featured?:           boolean
+          original_price_display?: string | null
+          sort_order?:            number
+          is_active?:             boolean
+          created_at?:            string
+        }
+        Update: {
+          id?:                    string
+          product_id?:            string
+          display_name?:          string
+          coin_amount?:           number
+          bonus_coins?:           number
+          badge?:                 string | null
+          badge_style?:           string | null
+          is_featured?:           boolean
+          original_price_display?: string | null
+          sort_order?:            number
+          is_active?:             boolean
+          created_at?:            string
+        }
+        Relationships: []
+      }
+      coin_transactions: {
+        Row: {
+          id:           string
+          user_id:      string
+          amount:       number
+          type:         'purchase' | 'redeem_code' | 'analysis_deduct' | 'trial'
+          reference_id: string | null
+          created_at:   string
+        }
+        Insert: {
+          id?:          string
+          user_id:      string
+          amount:       number
+          type:         'purchase' | 'redeem_code' | 'analysis_deduct' | 'trial'
+          reference_id?: string | null
+          created_at?:  string
+        }
+        Update: {
+          id?:          string
+          user_id?:     string
+          amount?:      number
+          type?:        'purchase' | 'redeem_code' | 'analysis_deduct' | 'trial'
+          reference_id?: string | null
+          created_at?:  string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      credit_coins: {
+        Args: { p_user_id: string; p_amount: number }
+        Returns: undefined
+      }
+      deduct_coin_atomic: {
+        Args: { p_user_id: string }
+        Returns: Array<{ success: boolean; remaining_balance: number }>
+      }
+      redeem_code_atomic: {
+        Args: { p_user_id: string; p_code: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

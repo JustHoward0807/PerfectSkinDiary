@@ -7,6 +7,7 @@ import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
 import { createIssue, deleteIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import { checkAndDeduct } from '../../src/services/supabase/walletService';
 import type { Json } from '../../src/types/database.types';
 
 const STEPS = [
@@ -50,6 +51,32 @@ export default function GeneratingScreen() {
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
+
+        // ── Coin gate ─────────────────────────────────────────────────────────
+        // Check trial window / deduct 1 coin BEFORE creating any issue row so
+        // we can abort cleanly without orphaned data if the user can't pay.
+        const gate = await checkAndDeduct(/* issueId unknown yet */ undefined);
+        if (!gate.allowed) {
+          if (gate.reason === 'insufficient') {
+            Alert.alert(
+              'Not Enough Coins',
+              `You need 1 coin to run a skin analysis. You have ${gate.remaining_balance ?? 0} coins.`,
+              [
+                { text: 'Buy Coins', onPress: () => router.replace('/wallet') },
+                { text: 'Cancel', style: 'cancel', onPress: () => router.back() },
+              ],
+            );
+          } else {
+            Alert.alert('Analysis Unavailable', 'Please try again later.', [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
+          }
+          return;
+        }
+        // Note: if the analysis fails later (API error), the deducted coin is
+        // not automatically refunded. This is the accepted trade-off — adding
+        // server-side analysis state tracking would add significant complexity.
+        // ─────────────────────────────────────────────────────────────────────
 
         const d = new Date();
         const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

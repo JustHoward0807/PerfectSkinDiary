@@ -1,30 +1,36 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-  View, Text, Pressable, Modal,
+  View, Text, ScrollView, Pressable, Modal,
   ActivityIndicator, Alert, StyleSheet,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { IOSColors, Colors as C, Radius } from '../../theme';
+import { IOSColors, Radius } from '../../theme';
 import { APP_VERSION, COPYRIGHT_YEAR } from '../../constants/version';
 import { deleteUserAccount } from '../../services/supabase/accountService';
+import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
+import { EmailGateSheet } from '../ui';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const BG   = '#F2F2F7';   // iOS system grouped background
-const CARD = '#FFFFFF';   // iOS grouped section background
+const BG   = '#F2F2F7';
+const CARD = '#FFFFFF';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function NavItem({ icon, label, onPress }: { icon: IoniconName; label: string; onPress: () => void }) {
+function NavItem({ icon, label, onPress }: { icon: IoniconName; label: ReactNode; onPress: () => void }) {
   return (
     <Pressable style={styles.navItem} onPress={onPress}>
       <View style={styles.navIconCircle}>
         <Ionicons name={icon} size={19} color={IOSColors.secondaryLabel} />
       </View>
-      <Text style={styles.navLabel}>{label}</Text>
+      {typeof label === 'string'
+        ? <Text style={styles.navLabel}>{label}</Text>
+        : <View style={styles.navLabelRow}>{label}</View>
+      }
       <Ionicons name="chevron-forward" size={16} color={IOSColors.secondaryLabel} />
     </Pressable>
   );
@@ -33,10 +39,7 @@ function NavItem({ icon, label, onPress }: { icon: IoniconName; label: string; o
 function DeleteConfirmModal({
   visible, deleting, onCancel, onConfirm,
 }: {
-  visible: boolean;
-  deleting: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
+  visible: boolean; deleting: boolean; onCancel: () => void; onConfirm: () => void;
 }) {
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
@@ -71,9 +74,26 @@ function DeleteConfirmModal({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const { bottom } = useSafeAreaInsets();
+  const { top, bottom } = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
+  const [authVisible,  setAuthVisible]  = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { balance, isInTrial, loading: walletLoading } = useWallet();
+  const { user } = useAuth();
+
+  const isAnonymous = user?.is_anonymous ?? true;
+  const displayName = user?.user_metadata?.full_name ?? user?.email ?? 'Anonymous';
+
+  const walletLabel: ReactNode = walletLoading
+    ? 'My Wallet'
+    : isInTrial
+      ? 'My Wallet  •  Free Trial'
+      : (
+        <>
+          <Text style={{ fontSize: 16, color: IOSColors.label }}>{`My Wallet: ${balance ?? 0} `}</Text>
+          <Ionicons name="ellipse" size={11} color="#FFD700" />
+        </>
+      );
 
   const handleDeleteConfirm = async () => {
     setDeleting(true);
@@ -88,16 +108,30 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={[styles.scroll, { paddingBottom: bottom + 60 }]}>
+    <View style={styles.root}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: top + 16, paddingBottom: bottom + 60 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>Settings</Text>
 
-        {/* Profile — glass card */}
-        <BlurView intensity={60} tint="systemChromeMaterial" style={styles.profileCard}>
-          <Text style={styles.userName}>Anonymous</Text>
-        </BlurView>
+        {/* Profile — only shown when signed in */}
+        {!isAnonymous && (
+          <BlurView intensity={60} tint="systemChromeMaterial" style={styles.profileCard}>
+            <Text style={styles.userName}>{displayName}</Text>
+          </BlurView>
+        )}
 
         {/* Navigation list */}
         <BlurView intensity={60} tint="systemChromeMaterial" style={styles.sectionCard}>
+          {isAnonymous && (
+            <>
+              <NavItem icon="person-circle-outline" label="Sign In & Secure Account" onPress={() => setAuthVisible(true)} />
+              <View style={styles.divider} />
+            </>
+          )}
+          <NavItem icon="wallet-outline" label={walletLabel} onPress={() => router.push('/wallet')} />
+          <View style={styles.divider} />
           <NavItem icon="information-circle-outline" label="About App" onPress={() => router.push('/about')} />
           <View style={styles.divider} />
           <NavItem icon="document-text-outline" label="Terms of Service" onPress={() => router.push('/terms')} />
@@ -111,16 +145,13 @@ export default function SettingsScreen() {
           <Text style={styles.deleteBtnText}>Delete Account</Text>
         </Pressable>
 
-        <View style={{ flex: 1 }} />
-
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerVersion}>© {COPYRIGHT_YEAR} PerfectSkinDiary • {APP_VERSION}</Text>
           <Text style={styles.footerPoweredBy}>POWERED BY</Text>
           <Text style={styles.footerCredits}>PERFECT CORP YOUCAM • OPEN-METEO • ANTHROPIC</Text>
         </View>
-
-      </View>
+      </ScrollView>
 
       <DeleteConfirmModal
         visible={modalVisible}
@@ -128,23 +159,29 @@ export default function SettingsScreen() {
         onCancel={() => { if (!deleting) setModalVisible(false); }}
         onConfirm={handleDeleteConfirm}
       />
-    </SafeAreaView>
+
+      <EmailGateSheet
+        visible={authVisible}
+        onLinked={() => setAuthVisible(false)}
+        onDismiss={() => setAuthVisible(false)}
+      />
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 28, gap: 16 },
+  root:    { flex: 1, backgroundColor: BG },
+  content: { paddingHorizontal: 16, gap: 16 },
+  title:   { fontSize: 34, fontWeight: '700', letterSpacing: 0.4, color: IOSColors.label },
 
   // Profile card
   profileCard: {
     borderRadius: Radius.md, overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth, borderColor: IOSColors.separator,
     paddingVertical: 20, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center',
   },
   userName: { fontSize: 17, fontWeight: '600', color: IOSColors.label },
 
@@ -159,7 +196,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: IOSColors.separator,
     alignItems: 'center', justifyContent: 'center',
   },
-  navLabel: { flex: 1, fontSize: 16, color: IOSColors.label },
+  navLabel:    { flex: 1, fontSize: 16, color: IOSColors.label },
+  navLabelRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: IOSColors.separator, marginLeft: 64 },
 
   // Delete Account button
@@ -171,10 +209,10 @@ const styles = StyleSheet.create({
   deleteBtnText: { fontSize: 16, fontWeight: '500', color: IOSColors.label },
 
   // Footer
-  footer: { alignItems: 'center', gap: 4, paddingVertical: 16 },
-  footerVersion: { fontSize: 13, color: IOSColors.secondaryLabel },
+  footer: { alignItems: 'center', gap: 4, paddingVertical: 8 },
+  footerVersion:   { fontSize: 13, color: IOSColors.secondaryLabel },
   footerPoweredBy: { fontSize: 11, fontWeight: '600', color: IOSColors.secondaryLabel, letterSpacing: 0.5, marginTop: 8 },
-  footerCredits: { fontSize: 11, color: IOSColors.secondaryLabel, letterSpacing: 0.3, textAlign: 'center' },
+  footerCredits:   { fontSize: 11, color: IOSColors.secondaryLabel, letterSpacing: 0.3, textAlign: 'center' },
 
   // Delete confirm modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -190,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 20,
   },
   modalTitle: { fontSize: 20, fontWeight: '700', color: IOSColors.label, textAlign: 'center', marginBottom: 12, lineHeight: 28 },
-  modalBody: { fontSize: 15, color: IOSColors.secondaryLabel, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  modalBody:  { fontSize: 15, color: IOSColors.secondaryLabel, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
   modalDeleteBtn: {
     backgroundColor: IOSColors.label, borderRadius: Radius.full,
     paddingVertical: 15, width: '100%', alignItems: 'center', marginBottom: 12,
