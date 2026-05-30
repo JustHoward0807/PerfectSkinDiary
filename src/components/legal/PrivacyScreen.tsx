@@ -63,9 +63,10 @@ export default function PrivacyScreen() {
 
             <SubHeading>3. Secure Storage</SubHeading>
             <Body>
-              Your photos and the resulting biometric scores are stored securely in Supabase, our
-              encrypted database and file-storage infrastructure. We employ industry-standard security
-              measures to prevent unauthorised access.
+              Your photos and the resulting biometric scores are stored in Supabase, a US-based cloud
+              platform. Data is protected in transit via HTTPS and at rest by Supabase's
+              industry-standard cloud security. As the app developer, we have administrative access to
+              this storage solely for operational support purposes.
             </Body>
 
             <SubHeading>4. Strict Usage Limits</SubHeading>
@@ -84,6 +85,18 @@ export default function PrivacyScreen() {
               information is required or collected on sign-up. Your data is associated with an
               anonymous session ID generated at first launch. All skin tracks, entries, and routine
               data are tied exclusively to this anonymous session.
+            </Body>
+          </View>
+
+          {/* Location Data */}
+          <View style={styles.section}>
+            <SectionHeading>Location Data</SectionHeading>
+            <Body>
+              When you view the UV index on the home screen, the app requests your approximate device
+              location. This is used solely to fetch local weather and UV data from Open-Meteo, an
+              open-source weather service. Your location is sent directly to Open-Meteo and is not
+              stored by PerfectSkinDiary beyond the current session. No account is created with
+              Open-Meteo and no location data is retained on our servers.
             </Body>
           </View>
 

@@ -160,7 +160,7 @@ Each entry in the PDF contains:
 - Home screen top-right corner
 - UV Index fetched by GPS or manual city input
 - Calculates minimum recommended SPF for today
-- Daily morning push notification
+- Daily morning push notification *(planned — not yet implemented)*
 
 ---
 
@@ -185,9 +185,9 @@ See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 | Animation | react-native-reanimated |
 | Styling | React Native StyleSheet |
 | Camera | expo-camera |
-| Notifications | expo-notifications |
+| Notifications | expo-notifications *(planned)* |
 | Location | expo-location (with manual city fallback) |
-| PDF Export | react-native-html-to-pdf |
+| PDF Export | expo-print |
 
 **Platform-specific UI** — platform implementations live in dedicated `src/ios/` and `src/android/` source trees. `src/components/` holds thin bridge files (`.ios.tsx` / `.android.tsx`) that re-export from the correct platform folder — Metro dispatches automatically, no runtime `Platform.OS` checks in the component layer.
 
