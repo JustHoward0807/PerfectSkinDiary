@@ -177,7 +177,7 @@ Each skin analysis costs **1 coin**. New users get a **3-day free trial** (serve
 - Home screen top-right corner
 - UV Index fetched by GPS or manual city input
 - Calculates minimum recommended SPF for today
-- Daily morning push notification
+- Daily morning push notification *(planned — not yet implemented)*
 
 ---
 
@@ -202,7 +202,7 @@ See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 | Animation | react-native-reanimated |
 | Styling | React Native StyleSheet |
 | Camera | expo-camera |
-| Notifications | expo-notifications |
+| Notifications | expo-notifications *(planned)* |
 | Location | expo-location (with manual city fallback) |
 | PDF Export | react-native-html-to-pdf |
 | In-App Purchase | react-native-iap (iOS StoreKit + Android Billing) |
