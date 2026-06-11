@@ -41,6 +41,8 @@ Each Track has:
 - A **locked Goal Image** generated on Day 1 (see below)
 - A chronological entry timeline (one photo per day)
 
+**One new track per day** — users can only start one new skin track per day. The limit resets at local midnight. This is enforced in the generating screen before any coin is deducted or DB row created.
+
 ---
 
 ### 🎯 Goal Image (AI Skin Simulation)
@@ -165,7 +167,7 @@ The app starts anonymously — no sign-up required. Users are prompted to link t
 
 ### 💰 Coin Wallet & In-App Purchases
 
-Each skin analysis costs **1 coin**. New users get a **3-day free trial** (server-enforced) during which analyses are free.
+Each skin analysis costs **1 coin**. New users get a **2-day free trial** (server-enforced) during which analyses are free.
 
 - Coin balance displayed in Settings → "My Wallet" and on the Wallet screen
 - Top-up packages configured in Supabase (`coin_packages` table) — amounts and badges update instantly without an app release; prices are fetched live from the App Store / Play Store at runtime

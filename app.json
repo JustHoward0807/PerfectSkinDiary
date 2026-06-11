@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.perfectskindiary.app",
-      "buildNumber": "2",
+      "buildNumber": "9",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "icon": "./assets/PerfectSkinDiary.icon",

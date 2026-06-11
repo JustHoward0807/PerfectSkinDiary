@@ -15,7 +15,19 @@ async function deleteStorageFolder(prefix: string): Promise<void> {
 }
 
 export async function deleteUserAccount(): Promise<void> {
-  // TODO: implement real deletion when ready
-  // Simulates the async work so the loading UI behaves correctly.
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // 1. Delete all storage files (SQL functions can't touch Storage buckets)
+  await deleteStorageFolder(user.id).catch(() => {});
+
+  // 2. Delete DB records + auth user via SECURITY DEFINER function
+  const { error } = await supabase.rpc('delete_user_account');
+  if (error) throw new Error(error.message);
+
+  // 3. Clear the now-invalid local session
+  await supabase.auth.signOut();
+
+  // 4. Create a fresh anonymous account — caller can navigate home after this
+  await supabase.auth.signInAnonymously();
 }

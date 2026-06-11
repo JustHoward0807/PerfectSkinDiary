@@ -253,7 +253,7 @@ type DayOption = 3 | 5 | 10;
 const DAY_OPTIONS: DayOption[] = [3, 5, 10];
 
 export default function AnalysisScreen() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -266,12 +266,15 @@ export default function AnalysisScreen() {
   const isFirstMount = useRef(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
     fetchRecentEntries(user.id, 30)
       .then(raw => setEntries(deduplicateByDate(raw)))
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, authLoading]);
 
   useFocusEffect(
     useCallback(() => {

@@ -26,8 +26,8 @@ import { supabase } from '../../services/supabase/supabase';
 type IAPModule = {
   initConnection:          () => Promise<string>;
   endConnection:           () => Promise<void>;
-  getProducts:             (p: { skus: string[] }) => Promise<Product[]>;
-  requestPurchase:         (p: { sku: string; andDangerouslyFinishTransactionAutomaticallyIOS?: boolean }) => Promise<Purchase | null>;
+  fetchProducts:           (p: { skus: string[]; type?: string }) => Promise<Product[]>;
+  requestPurchase:         (p: { request: { apple: { sku: string } }; type?: string }) => Promise<Purchase | null>;
   finishTransaction:       (p: { purchase: Purchase; isConsumable: boolean }) => Promise<string | void>;
   purchaseUpdatedListener: (cb: (p: Purchase) => void | Promise<void>) => { remove: () => void };
   purchaseErrorListener:   (cb: (e: PurchaseError) => void)            => { remove: () => void };
@@ -69,17 +69,16 @@ export default function WalletScreen() {
       if (!iap) return; // Expo Go — IAP module not available
 
       try {
-        await iap.initConnection();
-      } catch {
-        // IAP unavailable (simulator / no StoreKit entitlement) — degrade gracefully.
+        const connected = await iap.initConnection();
+        console.log('[IAP] initConnection:', connected);
+      } catch (e) {
+        console.error('[IAP] initConnection failed:', e);
         return;
       }
 
       // Must set up listeners BEFORE any purchase request.
       purchaseUpdateSub = iap.purchaseUpdatedListener(async (purchase: Purchase) => {
-        const receipt = Platform.OS === 'ios'
-          ? purchase.transactionReceipt
-          : purchase.purchaseToken;
+        const receipt = purchase.purchaseToken ?? undefined;
 
         if (!receipt) return;
 
@@ -125,9 +124,14 @@ export default function WalletScreen() {
   // ── Fetch store prices once IAP is ready AND packages are loaded ──────────
   useEffect(() => {
     if (!iapReady || packages.length === 0 || !iap) return;
-    iap.getProducts({ skus: packages.map(p => p.product_id) })
-      .then(setIapProducts)
-      .catch(() => { /* store prices unavailable — show dash */ });
+    const skus = packages.map(p => p.product_id);
+    console.log('[IAP] fetchProducts skus:', skus);
+    iap.fetchProducts({ skus })
+      .then(products => {
+        console.log('[IAP] fetchProducts result:', products.length, products.map(p => p.id + ' ' + p.displayPrice));
+        setIapProducts(products);
+      })
+      .catch(e => console.error('[IAP] fetchProducts error:', e));
   }, [iapReady, packages]);
 
   // ── Buy handler ────────────────────────────────────────────────────────────
@@ -148,7 +152,7 @@ export default function WalletScreen() {
 
     setPurchasingId(productId);
     try {
-      await iap.requestPurchase({ sku: productId, andDangerouslyFinishTransactionAutomaticallyIOS: false });
+      await iap.requestPurchase({ request: { apple: { sku: productId } }, type: 'in-app' });
     } catch {
       setPurchasingId(null);
     }
@@ -188,8 +192,8 @@ export default function WalletScreen() {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const getStorePrice = (productId: string): string => {
-    const p = iapProducts.find(i => i.productId === productId);
-    return p?.localizedPrice ?? '—';
+    const p = iapProducts.find(i => i.id === productId);
+    return p?.displayPrice ?? '—';
   };
 
   const balanceLabel = wallet.loading

@@ -95,7 +95,8 @@ export default function SettingsScreen() {
     setDeleting(true);
     try {
       await deleteUserAccount();
-      router.replace('/');
+      setDeleting(false);
+      setModalVisible(false);
     } catch {
       setDeleting(false);
       setModalVisible(false);

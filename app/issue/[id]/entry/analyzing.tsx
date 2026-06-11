@@ -38,7 +38,8 @@ export default function EntryAnalyzingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (!user) throw new Error('Not authenticated');
 
         // ── Coin gate ─────────────────────────────────────────────────────────

@@ -1,9 +1,5 @@
 import { supabase } from '../services/supabase/supabase';
 
-// Lazy require — @react-native-google-signin/google-signin is a native module
-// that crashes at import time in Expo Go. Requiring it inside functions means
-// the crash is deferred to the moment the user taps "Continue with Google",
-// where we can show a graceful error instead of breaking all routes.
 function getGoogleModule() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
@@ -21,18 +17,6 @@ function ensureConfigured() {
   _configured = true;
 }
 
-async function linkOrSignIn(provider: 'google' | 'apple', token: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user?.is_anonymous) {
-    const { error } = await supabase.auth.linkIdentity({ provider, token });
-    if (!error) return;
-    // Identity already belongs to a permanent account → restore it
-  }
-  const { error } = await supabase.auth.signInWithIdToken({ provider, token });
-  if (error) throw error;
-}
-
-// Returns 'cancelled' when the user dismisses the Google sheet; throws on real errors.
 export async function signInWithGoogle(): Promise<'success' | 'cancelled'> {
   const { GoogleSignin, isErrorWithCode, statusCodes } = getGoogleModule();
   ensureConfigured();
@@ -41,7 +25,19 @@ export async function signInWithGoogle(): Promise<'success' | 'cancelled'> {
     const response = await GoogleSignin.signIn();
     const idToken = response.data?.idToken;
     if (!idToken) throw new Error('Google did not return an ID token.');
-    await linkOrSignIn('google', idToken);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.is_anonymous) {
+      // Link Google identity to the anonymous account — preserves UID and all data
+      // SDK types don't yet reflect the native token overload, so cast to any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.auth.linkIdentity as any)({ provider: 'google', token: idToken });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+      if (error) throw error;
+    }
+
     return 'success';
   } catch (err) {
     if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -52,7 +48,15 @@ export async function signInWithGoogle(): Promise<'success' | 'cancelled'> {
 }
 
 export async function signInWithApple(identityToken: string): Promise<void> {
-  await linkOrSignIn('apple', identityToken);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user?.is_anonymous) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.auth.linkIdentity as any)({ provider: 'apple', token: identityToken });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: identityToken });
+    if (error) throw error;
+  }
 }
 
 export const isGoogleConfigured = (): boolean =>

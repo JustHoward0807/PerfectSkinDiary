@@ -168,6 +168,18 @@ export async function deleteIssueAndEntries(issueId: string): Promise<void> {
   if (issueError) throw new Error(`deleteIssueAndEntries (issue) failed: ${issueError.message}`);
 }
 
+export async function hasCreatedTrackToday(userId: string): Promise<boolean> {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const { count, error } = await supabase
+    .from('issues')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', startOfToday);
+  if (error) return false;
+  return (count ?? 0) >= 1;
+}
+
 export async function createIssue(params: CreateIssueParams): Promise<string> {
   const { data, error } = await supabase
     .from('issues')

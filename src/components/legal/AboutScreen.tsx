@@ -34,12 +34,6 @@ export default function AboutScreen() {
             share that record with your dermatologist when you're ready.
           </Text>
 
-          {/* Hero placeholder */}
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="camera-outline" size={48} color={C.outline} />
-            <Text style={styles.imagePlaceholderLabel}>Your daily skincare journal</Text>
-          </View>
-
           {/* Feature cards */}
           <View style={styles.grid}>
             <FeatureCard
@@ -78,14 +72,6 @@ const styles = StyleSheet.create({
 
   heading: { fontSize: 28, fontWeight: '700', color: C.primary, lineHeight: 36 },
   intro: { fontSize: 16, color: C.onSurfaceVariant, lineHeight: 26 },
-
-  imagePlaceholder: {
-    width: '100%', height: 180,
-    backgroundColor: C.surfaceVariant, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: C.outline,
-    alignItems: 'center', justifyContent: 'center', gap: 10,
-  },
-  imagePlaceholderLabel: { fontSize: 13, color: C.onSurfaceVariant },
 
   grid: { gap: 12 },
   featureCard: {

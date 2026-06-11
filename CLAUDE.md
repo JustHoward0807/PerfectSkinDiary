@@ -118,6 +118,19 @@ Analysis tasks are created with `enable_mask_overlay: false`. This returns 24 in
 
 `generating.tsx` creates the issue **before** running analysis — with `baselineScores: null` and `goalImageUrl: ''` — to obtain a real `issueId` for use in mask Storage paths. After both `runSkinAnalysis` and `runSkinSimulation` complete and images are uploaded, a single `UPDATE` patches both `baseline_scores` and `goal_image_url` together. Do not revert to the old order (analysis first, create issue second) — mask uploads would fail with `undefined` path segments, violating the Storage RLS policy.
 
+### One new track per day limit
+
+Users can only create **one new skin track per day**. The guard runs at the very top of `run()` in `app/new-issue/generating.tsx`, before the coin gate, so neither a coin nor a DB row is consumed when the limit is already hit.
+
+`hasCreatedTrackToday(userId)` in `issueService.ts` queries `issues` for rows with `created_at >= local midnight today` (converted to UTC ISO for the TIMESTAMPTZ comparison). Returns `true` if count ≥ 1. Fails open on Supabase error so a transient network issue doesn't block the user.
+
+```ts
+// Local midnight → UTC ISO for TIMESTAMPTZ comparison
+const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+```
+
+The limit resets at local midnight (same convention as all other date logic in the app).
+
 ### Date handling — always use device local time
 
 **Never** use `new Date().toISOString().split('T')[0]` to get today's date — `toISOString()` returns UTC, which is off by one day for US timezones (UTC-7/UTC-8) when it's past UTC midnight.
@@ -228,6 +241,27 @@ Remove any hardcoded `paddingBottom` from the static `content` style — the inl
 )}
 ```
 
+### Anonymous → social sign-in linking
+
+`src/hooks/useAuthLink.ts` — both `signInWithGoogle` and `signInWithApple` check `user.is_anonymous` before calling the auth method:
+
+- **Anonymous user** → `(supabase.auth.linkIdentity as any)({ provider, token: idToken })` — links the Google/Apple identity to the existing anonymous account, **preserving the UID** and all associated data (issues, entries, wallet)
+- **Non-anonymous user** → `supabase.auth.signInWithIdToken({ provider, token })` — standard sign-in
+
+The `as any` cast is required because the JS SDK types for `linkIdentity` only describe the web OAuth redirect overload; the native token overload `{ provider, token }` works at runtime in v2.x but isn't in the TypeScript types yet.
+
+**Prerequisite**: "Manual Linking" must be enabled in Supabase Dashboard → Authentication → Configuration. Without it `linkIdentity` returns an error regardless of the token.
+
+### Delete account
+
+`deleteUserAccount()` in `src/services/supabase/accountService.ts`:
+1. Deletes all Storage files under `${userId}/` client-side (SQL functions cannot reach Storage buckets)
+2. Calls `supabase.rpc('delete_user_account')` — a `SECURITY DEFINER` SQL function that deletes `entries` → `issues` (products cascade) → `auth.users` row (wallet + coin_transactions cascade)
+3. Calls `supabase.auth.signOut()` to clear the now-invalid local session
+4. Calls `supabase.auth.signInAnonymously()` to provision a fresh anonymous account
+
+The SQL function was applied via migration `delete_user_account_function`. It runs as the postgres role (permission to `DELETE FROM auth.users`). Only the `authenticated` role can call it — anonymous users are excluded. SettingsScreen closes the modal and resets state on success; `useAuth`'s `onAuthStateChange` then re-renders the screen automatically showing the new anonymous state.
+
 ### Google Sign-In — lazy require pattern
 
 `@react-native-google-signin/google-signin` is a native module that **crashes at import time in Expo Go**. The crash propagates through `EmailGateSheet` → `ui/index.ts` → every screen that imports any UI primitive, taking down all routes.
@@ -243,6 +277,17 @@ function getGoogleModule() {
 
 This defers the crash to the moment the user taps "Continue with Google", where it surfaces as a graceful `Alert` instead of breaking the whole app. Do not change this to a top-level import.
 
+### react-native-iap v15 field name changes
+
+In v15 (NitroModules), the `Product` type changed on both iOS and Android (`ProductCommon`):
+
+| v14 and below | v15+ |
+|---|---|
+| `product.productId` | `product.id` |
+| `product.localizedPrice` | `product.displayPrice` |
+
+On iOS, `fetchProducts` takes `{ skus: string[] }` with **no `type` parameter** — `type` is Android-only (`'in-app'` or `'subs'`). Passing `type: 'in-app'` on iOS causes StoreKit to return 0 products.
+
 ### Auth hooks
 
 **`useAuth`** (`src/hooks/useAuth.ts`) — thin wrapper around `supabase.auth.getUser()` + `onAuthStateChange`. Returns `{ user }`. Used by SettingsScreen to read `user.is_anonymous`, `user.user_metadata.full_name`, and `user.email`.
@@ -251,7 +296,7 @@ This defers the crash to the moment the user taps "Continue with Google", where 
 ```ts
 {
   balance: number | null   // null until loaded
-  isInTrial: boolean       // true if < 3 days since account creation
+  isInTrial: boolean       // true if < 2 days since account creation
   trialDaysLeft: number
   loading: boolean
   refresh: () => Promise<void>

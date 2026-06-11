@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase/supabase';
 import { fetchWallet } from '../services/supabase/walletService';
 
-const TRIAL_DAYS = 3;
+const TRIAL_DAYS = 2;
 
 export interface WalletState {
   /** Coin balance, or null while loading for the first time. */
   balance:       number | null;
-  /** True while the user is still within the 3-day free-trial window. */
+  /** True while the user is still within the 2-day free-trial window. */
   isInTrial:     boolean;
   /** Days remaining in the trial (0 when not in trial). */
   trialDaysLeft: number;

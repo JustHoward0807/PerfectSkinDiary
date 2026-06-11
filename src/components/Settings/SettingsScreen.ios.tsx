@@ -99,7 +99,10 @@ export default function SettingsScreen() {
     setDeleting(true);
     try {
       await deleteUserAccount();
-      router.replace('/');
+      setDeleting(false);
+      setModalVisible(false);
+      // useAuth onAuthStateChange fires when signInAnonymously completes,
+      // refreshing the page to show the new anonymous state automatically.
     } catch {
       setDeleting(false);
       setModalVisible(false);
