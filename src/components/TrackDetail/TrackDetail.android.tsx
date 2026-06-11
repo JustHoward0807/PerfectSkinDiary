@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '../../theme';
 import { Header, CameraModal, ComparisonFullscreen } from '../ui';
 import { fetchIssue, fetchEntries, fetchProducts, addProduct, removeProduct, deleteIssueAndEntries, type IssueData, type EntryData, type Product } from '../../services/supabase/issueService';
+import { useWallet } from '../../hooks/useWallet';
 import { trackResultStore } from '../../services/trackResultStore';
 import { DEMO_ISSUE_ID } from '../../services/demoMode';
 import { computeOverallScore } from '../../utils/skinScore';
@@ -173,6 +174,7 @@ export default function TrackDetailAndroid() {
   // ── Derived values ──
   const alreadyLoggedToday = entries.some(e => e.entry_date === todayIso);
   const day1PhotoUri = entries[0]?.photo_url ?? null;
+  const { balance, isInTrial } = useWallet();
   const goalImageUri = issue?.goal_image_url ?? null;
 
   const day1Score = computeOverallScore(entries[0]?.analysis_scores);
@@ -452,9 +454,18 @@ export default function TrackDetailAndroid() {
         onPress={() => setCameraOpen(true)}
       >
         <Ionicons name="add" size={20} color={alreadyLoggedToday ? Colors.onSurfaceVariant : Colors.onPrimary} />
-        <Text style={[styles.fabText, alreadyLoggedToday && styles.fabTextDisabled]}>
-          {alreadyLoggedToday ? 'Logged Today' : "Add Today's Entry"}
-        </Text>
+        <View>
+          <Text style={[styles.fabText, alreadyLoggedToday && styles.fabTextDisabled]}>
+            {alreadyLoggedToday ? 'Logged Today' : "Add Today's Entry"}
+          </Text>
+          {!alreadyLoggedToday && !isInTrial && balance !== null && (
+            <View style={styles.fabSubRow}>
+              <Text style={styles.fabSubText}>{balance}</Text>
+              <Ionicons name="ellipse" size={10} color="#FFD700" />
+              <Text style={styles.fabSubText}>available  ·  −1 per entry</Text>
+            </View>
+          )}
+        </View>
       </Pressable>
     </View>
   );
@@ -788,4 +799,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   fabTextDisabled: { color: Colors.onSurfaceVariant },
+  fabSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  fabSubText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.78)',
+  },
 });

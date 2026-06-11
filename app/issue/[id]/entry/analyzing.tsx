@@ -6,6 +6,7 @@ import { runSkinAnalysis } from '../../../../src/services/youcam/youcamApi';
 import { supabase } from '../../../../src/services/supabase/supabase';
 import { uploadEntryPhoto } from '../../../../src/services/supabase/storage';
 import { createEntry, fetchProducts } from '../../../../src/services/supabase/issueService';
+import { checkAndDeduct } from '../../../../src/services/supabase/walletService';
 
 const STEPS = [
   { label: 'Uploading your photo',    sub: 'Sending your selfie securely...' },
@@ -37,8 +38,30 @@ export default function EntryAnalyzingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (!user) throw new Error('Not authenticated');
+
+        // ── Coin gate ─────────────────────────────────────────────────────────
+        const gate = await checkAndDeduct(issueId ?? undefined);
+        if (!gate.allowed) {
+          if (gate.reason === 'insufficient') {
+            Alert.alert(
+              'Not Enough Coins',
+              `You need 1 coin per analysis. You have ${gate.remaining_balance ?? 0} coins.`,
+              [
+                { text: 'Buy Coins', onPress: () => router.replace('/wallet') },
+                { text: 'Cancel', style: 'cancel', onPress: () => router.back() },
+              ],
+            );
+          } else {
+            Alert.alert('Analysis Unavailable', 'Please try again later.', [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
+          }
+          return;
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         const d = new Date();
         const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
