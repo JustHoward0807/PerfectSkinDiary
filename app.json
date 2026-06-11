@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.perfectskindiary.app",
-      "buildNumber": "9",
+      "buildNumber": "14",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "icon": "./assets/PerfectSkinDiary.icon",
@@ -48,7 +48,6 @@
     "plugins": [
       "expo-router",
       "expo-camera",
-      "expo-font",
       "expo-location",
       "expo-apple-authentication",
       [
@@ -62,7 +61,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.790615746992-anvu3ivnf4d3apr16au8tcpa3u3ckjas"
         }
-      ]
+      ],
+      "./plugins/withModularHeaders"
     ],
     "extra": {
       "router": {},
