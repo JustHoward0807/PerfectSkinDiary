@@ -13,7 +13,8 @@ export function useAuth() {
         setUser(session.user)
       } else {
         const { data, error } = await supabase.auth.signInAnonymously()
-        if (!error) setUser(data.user)
+        if (error) console.error('[useAuth] signInAnonymously error:', error.message, error.status)
+        else setUser(data.user)
       }
       setLoading(false)
     })

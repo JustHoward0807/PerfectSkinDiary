@@ -6,19 +6,25 @@
   "build": {
     "preview": {
       "environment": "preview",
-      "android": {
-        "buildType": "apk"
-      },
       "ios": {
-        "distribution": "store"
+        "distribution": "internal"
       }
     },
     "production": {
       "environment": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "ios": {
+        "distribution": "store"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "howardongdev0807@gmail.com",
+        "ascAppId": "6775948753",
+        "appleTeamId": "RFRYGULZBC"
+      }
+    }
   }
 }

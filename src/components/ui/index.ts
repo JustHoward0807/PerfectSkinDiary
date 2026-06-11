@@ -6,3 +6,4 @@ export { default as SectionCard } from './SectionCard/SectionCard';
 export { default as CameraModal } from './CameraModal/CameraModal';
 export { default as ComparisonFullscreen } from './ComparisonFullscreen/ComparisonFullscreen';
 export { default as PhotoFullscreen } from './PhotoFullscreen/PhotoFullscreen';
+export { default as EmailGateSheet } from './EmailGateSheet/EmailGateSheet';

@@ -6,7 +6,8 @@ import { runSkinAnalysis, runSkinSimulation } from '../../src/services/youcam/yo
 import { trackResultStore } from '../../src/services/trackResultStore';
 import { supabase } from '../../src/services/supabase/supabase';
 import { uploadPhoto, uploadGoalImage } from '../../src/services/supabase/storage';
-import { createIssue, deleteIssue, createDayOneEntry, fetchIssue, fetchEntries } from '../../src/services/supabase/issueService';
+import { createIssue, deleteIssue, createDayOneEntry, fetchIssue, fetchEntries, hasCreatedTrackToday } from '../../src/services/supabase/issueService';
+import { checkAndDeduct } from '../../src/services/supabase/walletService';
 import type { Json } from '../../src/types/database.types';
 
 const STEPS = [
@@ -48,8 +49,45 @@ export default function GeneratingScreen() {
         setStepIndex(0);
         animateTo(PROGRESS_AT_STEP[0]);
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (!user) throw new Error('Not authenticated');
+
+        // ── Daily track limit ──────────────────────────────────────────────────
+        if (await hasCreatedTrackToday(user.id)) {
+          Alert.alert(
+            'One Track Per Day',
+            'You can only start one new skin track per day. Come back tomorrow to begin a new track, or continue an existing one.',
+            [{ text: 'OK', onPress: () => router.back() }],
+          );
+          return;
+        }
+
+        // ── Coin gate ─────────────────────────────────────────────────────────
+        // Check trial window / deduct 1 coin BEFORE creating any issue row so
+        // we can abort cleanly without orphaned data if the user can't pay.
+        const gate = await checkAndDeduct(/* issueId unknown yet */ undefined);
+        if (!gate.allowed) {
+          if (gate.reason === 'insufficient') {
+            Alert.alert(
+              'Not Enough Coins',
+              `You need 1 coin to run a skin analysis. You have ${gate.remaining_balance ?? 0} coins.`,
+              [
+                { text: 'Buy Coins', onPress: () => router.replace('/wallet') },
+                { text: 'Cancel', style: 'cancel', onPress: () => router.back() },
+              ],
+            );
+          } else {
+            Alert.alert('Analysis Unavailable', 'Please try again later.', [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
+          }
+          return;
+        }
+        // Note: if the analysis fails later (API error), the deducted coin is
+        // not automatically refunded. This is the accepted trade-off — adding
+        // server-side analysis state tracking would add significant complexity.
+        // ─────────────────────────────────────────────────────────────────────
 
         const d = new Date();
         const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

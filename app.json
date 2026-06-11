@@ -15,11 +15,14 @@
     },
     "ios": {
       "bundleIdentifier": "com.perfectskindiary.app",
-      "buildNumber": "1",
+      "buildNumber": "9",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "icon": "./assets/PerfectSkinDiary.icon",
       "infoPlist": {
-        "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis."
+        "NSCameraUsageDescription": "PerfectSkinDiary uses the camera to capture your daily skin selfie for analysis.",
+        "NSLocationWhenInUseUsageDescription": "PerfectSkinDiary uses your location to show the current UV index and recommend the right SPF for today.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -32,7 +35,10 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -42,7 +48,21 @@
     "plugins": [
       "expo-router",
       "expo-camera",
-      "expo-font"
+      "expo-font",
+      "expo-location",
+      "expo-apple-authentication",
+      [
+        "react-native-iap",
+        {
+          "playServiceVersion": "20.1.0"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.790615746992-anvu3ivnf4d3apr16au8tcpa3u3ckjas"
+        }
+      ]
     ],
     "extra": {
       "router": {},

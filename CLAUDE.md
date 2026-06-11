@@ -70,6 +70,7 @@ Shared UI primitives live in **`src/components/ui/`** and are re-exported from `
 | `Chip` | Selectable tag with haptic feedback on press |
 | `SectionCard` | Container card (BlurView on iOS, `surfaceVariant` View on Android) |
 | `CameraModal` | Full-screen selfie modal (capture → preview → confirm/retake); iOS uses BlurView bottom bar, Android uses dark View; calls `onConfirm(uri)` with a horizontally-flipped JPEG URI |
+| `EmailGateSheet` | Bottom sheet modal for anonymous→permanent account upgrade; iOS: BlurView + Apple Sign-In button (primary) + Google button; Android: Google button only; props: `{ visible, onLinked, onDismiss }` |
 
 Import pattern:
 
@@ -116,6 +117,19 @@ Analysis tasks are created with `enable_mask_overlay: false`. This returns 24 in
 ### New-track (Day 1) issue creation order
 
 `generating.tsx` creates the issue **before** running analysis — with `baselineScores: null` and `goalImageUrl: ''` — to obtain a real `issueId` for use in mask Storage paths. After both `runSkinAnalysis` and `runSkinSimulation` complete and images are uploaded, a single `UPDATE` patches both `baseline_scores` and `goal_image_url` together. Do not revert to the old order (analysis first, create issue second) — mask uploads would fail with `undefined` path segments, violating the Storage RLS policy.
+
+### One new track per day limit
+
+Users can only create **one new skin track per day**. The guard runs at the very top of `run()` in `app/new-issue/generating.tsx`, before the coin gate, so neither a coin nor a DB row is consumed when the limit is already hit.
+
+`hasCreatedTrackToday(userId)` in `issueService.ts` queries `issues` for rows with `created_at >= local midnight today` (converted to UTC ISO for the TIMESTAMPTZ comparison). Returns `true` if count ≥ 1. Fails open on Supabase error so a transient network issue doesn't block the user.
+
+```ts
+// Local midnight → UTC ISO for TIMESTAMPTZ comparison
+const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+```
+
+The limit resets at local midnight (same convention as all other date logic in the app).
 
 ### Date handling — always use device local time
 
@@ -227,6 +241,85 @@ Remove any hardcoded `paddingBottom` from the static `content` style — the inl
 )}
 ```
 
+### Anonymous → social sign-in linking
+
+`src/hooks/useAuthLink.ts` — both `signInWithGoogle` and `signInWithApple` check `user.is_anonymous` before calling the auth method:
+
+- **Anonymous user** → `(supabase.auth.linkIdentity as any)({ provider, token: idToken })` — links the Google/Apple identity to the existing anonymous account, **preserving the UID** and all associated data (issues, entries, wallet)
+- **Non-anonymous user** → `supabase.auth.signInWithIdToken({ provider, token })` — standard sign-in
+
+The `as any` cast is required because the JS SDK types for `linkIdentity` only describe the web OAuth redirect overload; the native token overload `{ provider, token }` works at runtime in v2.x but isn't in the TypeScript types yet.
+
+**Prerequisite**: "Manual Linking" must be enabled in Supabase Dashboard → Authentication → Configuration. Without it `linkIdentity` returns an error regardless of the token.
+
+### Delete account
+
+`deleteUserAccount()` in `src/services/supabase/accountService.ts`:
+1. Deletes all Storage files under `${userId}/` client-side (SQL functions cannot reach Storage buckets)
+2. Calls `supabase.rpc('delete_user_account')` — a `SECURITY DEFINER` SQL function that deletes `entries` → `issues` (products cascade) → `auth.users` row (wallet + coin_transactions cascade)
+3. Calls `supabase.auth.signOut()` to clear the now-invalid local session
+4. Calls `supabase.auth.signInAnonymously()` to provision a fresh anonymous account
+
+The SQL function was applied via migration `delete_user_account_function`. It runs as the postgres role (permission to `DELETE FROM auth.users`). Only the `authenticated` role can call it — anonymous users are excluded. SettingsScreen closes the modal and resets state on success; `useAuth`'s `onAuthStateChange` then re-renders the screen automatically showing the new anonymous state.
+
+### Google Sign-In — lazy require pattern
+
+`@react-native-google-signin/google-signin` is a native module that **crashes at import time in Expo Go**. The crash propagates through `EmailGateSheet` → `ui/index.ts` → every screen that imports any UI primitive, taking down all routes.
+
+Fix: use lazy `require()` inside a function body, never a top-level `import`:
+
+```ts
+// src/hooks/useAuthLink.ts
+function getGoogleModule() {
+  return require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
+}
+```
+
+This defers the crash to the moment the user taps "Continue with Google", where it surfaces as a graceful `Alert` instead of breaking the whole app. Do not change this to a top-level import.
+
+### react-native-iap v15 field name changes
+
+In v15 (NitroModules), the `Product` type changed on both iOS and Android (`ProductCommon`):
+
+| v14 and below | v15+ |
+|---|---|
+| `product.productId` | `product.id` |
+| `product.localizedPrice` | `product.displayPrice` |
+
+On iOS, `fetchProducts` takes `{ skus: string[] }` with **no `type` parameter** — `type` is Android-only (`'in-app'` or `'subs'`). Passing `type: 'in-app'` on iOS causes StoreKit to return 0 products.
+
+### Auth hooks
+
+**`useAuth`** (`src/hooks/useAuth.ts`) — thin wrapper around `supabase.auth.getUser()` + `onAuthStateChange`. Returns `{ user }`. Used by SettingsScreen to read `user.is_anonymous`, `user.user_metadata.full_name`, and `user.email`.
+
+**`useWallet`** (`src/hooks/useWallet.ts`) — fetches the user's wallet row and computes trial status from `user.created_at`. Returns:
+```ts
+{
+  balance: number | null   // null until loaded
+  isInTrial: boolean       // true if < 2 days since account creation
+  trialDaysLeft: number
+  loading: boolean
+  refresh: () => Promise<void>
+}
+```
+Trial is display-only. The authoritative check always happens server-side in the `check-and-deduct` Edge Function.
+
+### Wallet service and coin gate
+
+**`src/services/supabase/walletService.ts`** — client-side calls to the three wallet Edge Functions:
+- `checkAndDeduct(issueId?)` — called before every analysis; returns `{ allowed, reason, remaining_balance, trial_days_left }`
+- `validatePurchase({ platform, transactionId, receipt, productId })` — called after IAP purchase completes
+- `redeemCode(code)` — called from Wallet screen redeem input; returns `{ coins_added, new_balance }`
+- `fetchWallet()` / `fetchCoinPackages()` — read-only queries used by `useWallet` and WalletScreen
+
+**Coin gate** — `checkAndDeduct()` is called at the very top of `run()` in both analysis screens, before any issue or entry row is created:
+- `app/new-issue/generating.tsx` — gates Day 1 analysis + simulation
+- `app/issue/[id]/entry/analyzing.tsx` — gates subsequent entries
+
+If `allowed === false`, an `Alert` is shown with a "Buy Coins" button that navigates to `/wallet`, and `run()` returns early without creating any DB rows or calling any API. The coin is deducted before the API call — if the API subsequently fails, the coin is still spent (accepted trade-off to avoid server-side analysis state tracking).
+
+**`app/wallet.tsx`** — route entry point; just re-exports `WalletScreen` from `src/components/Wallet/WalletScreen`.
+
 ### Security model
 
 The RN client holds only the Supabase public anon key. All calls to YouCam and Claude go through **Supabase Edge Functions** which hold secrets server-side. Never put `YOUCAM_API_KEY` or `ANTHROPIC_API_KEY` in the app bundle.
@@ -258,12 +351,17 @@ App `.env` (safe to commit structure, not values):
 ```
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_KEY=
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=    # Google OAuth web client ID (from Google Cloud Console)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=    # Google OAuth iOS client ID (for native sign-in flow)
 ```
 
 Edge Function secrets (Supabase dashboard only):
 ```
 YOUCAM_API_KEY=
 ANTHROPIC_API_KEY=
+APPLE_SHARED_SECRET=        # App Store Connect → In-App Purchases → App-Specific Shared Secret
+GOOGLE_SERVICE_ACCOUNT_JSON= # Google Play Console → Setup → API access → service account JSON
+ANDROID_PACKAGE_NAME=       # e.g. com.perfectskindiary.app
 ```
 
 ## Database Schema
@@ -304,4 +402,73 @@ CREATE TABLE products (
   name      TEXT NOT NULL,
   routine   TEXT NOT NULL CHECK (routine IN ('am', 'pm'))
 );
+
+-- Coin wallet — one row per user. Balance is NEVER written by the client (no INSERT/UPDATE RLS policy).
+-- All writes go through Edge Functions using the service_role key.
+-- Trigger create_wallet_for_new_user() auto-creates this row on every new signup (anonymous or email).
+CREATE TABLE wallets (
+  user_id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  coin_balance  INTEGER NOT NULL DEFAULT 0 CHECK (coin_balance >= 0),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS: authenticated users may SELECT their own row only. No client writes.
+
+-- IAP packages — configurable from Supabase dashboard with no app update.
+-- coin_amount, bonus_coins, badge, sort_order, is_active can all change freely.
+-- USD prices are set in App Store Connect / Google Play Console and fetched at
+-- runtime by react-native-iap; they are NOT stored here.
+CREATE TABLE coin_packages (
+  id                     UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id             TEXT    NOT NULL UNIQUE,   -- matches App Store / Play Console SKU
+  display_name           TEXT    NOT NULL,
+  coin_amount            INTEGER NOT NULL CHECK (coin_amount > 0),
+  bonus_coins            INTEGER NOT NULL DEFAULT 0,
+  badge                  TEXT,                      -- e.g. "Best Value", "Promo: 20% OFF"
+  badge_style            TEXT,                      -- "primary" | "tertiary"
+  is_featured            BOOLEAN NOT NULL DEFAULT FALSE,
+  original_price_display TEXT,                      -- display-only strikethrough e.g. "$11.24"
+  sort_order             INTEGER NOT NULL DEFAULT 0,
+  is_active              BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS: any authenticated user (including anonymous) can SELECT active rows.
+
+-- Promo / redeem codes — admin-only. No client RLS SELECT policy (clients see nothing).
+-- All validation happens server-side in the redeem-code Edge Function.
+CREATE TABLE redeem_codes (
+  id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  code          TEXT    NOT NULL UNIQUE,
+  coin_amount   INTEGER NOT NULL CHECK (coin_amount > 0),
+  max_uses      INTEGER NOT NULL DEFAULT 1,
+  current_uses  INTEGER NOT NULL DEFAULT 0,
+  expires_at    TIMESTAMPTZ,   -- NULL = never expires
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS enabled, intentionally no SELECT policy.
+
+-- Immutable audit log. Positive amount = credit, negative = debit.
+-- type CHECK: 'purchase' | 'redeem_code' | 'analysis_deduct' | 'trial'
+CREATE TABLE coin_transactions (
+  id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID    NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  amount        INTEGER NOT NULL,
+  type          TEXT    NOT NULL,
+  reference_id  TEXT,   -- IAP transactionId / issue_id / redeem code string
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS: authenticated users may SELECT their own rows only. No client writes.
 ```
+
+### Wallet SQL functions (SECURITY DEFINER — service_role only)
+
+All three functions are revoked from `public`, `anon`, and `authenticated`. Only Edge Functions (which use `SUPABASE_SERVICE_ROLE_KEY`) can invoke them.
+
+| Function | Signature | Purpose |
+|---|---|---|
+| `credit_coins` | `(p_user_id UUID, p_amount INTEGER) → VOID` | Upsert-and-increment wallet balance. Called by `validate-purchase` and `redeem-code` Edge Functions after server-side validation. |
+| `deduct_coin_atomic` | `(p_user_id UUID) → TABLE(success BOOLEAN, remaining_balance INTEGER)` | Advisory lock + `FOR UPDATE` prevents double-spend. Called by `check-and-deduct` Edge Function before each analysis. |
+| `redeem_code_atomic` | `(p_user_id UUID, p_code TEXT) → JSON` | Validates code rules (active, not expired, under max_uses), increments `current_uses`, and credits coins — all in one serialised transaction. Returns `{ success, error_reason, coins_added, new_balance }`. |
+
+**Trigger**: `on_auth_user_created` fires `AFTER INSERT ON auth.users` and calls `create_wallet_for_new_user()` to auto-create a zero-balance wallet row for every new user (anonymous or email).
