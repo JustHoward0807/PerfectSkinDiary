@@ -8,7 +8,7 @@
 
 PerfectSkinDiary is a mobile app that helps users track their skin condition over time through daily photo journaling. By integrating **Perfect Corp's YouCam API** for clinical-grade skin analysis and **Claude** for human-readable interpretation, users gain meaningful, personalized insights into how their skin changes day by day — correlated with their skincare routine — and can share those records directly with their dermatologist.
 
-On Issue creation, a **Goal Image** is generated via AI Skin Simulation — a realistic visualisation of what the user's skin could look like after targeted improvement — giving every tracking journey a clear, motivating destination.
+On Track creation, a **Goal Image** is generated via AI Skin Simulation — a realistic visualisation of what the user's skin could look like after targeted improvement — giving every tracking journey a clear, motivating destination.
 
 The app also surfaces a lightweight **UV Index + SPF recommendation widget** on the home screen.
 
@@ -19,7 +19,7 @@ The app also surfaces a lightweight **UV Index + SPF recommendation widget** on 
 | Goal | Description |
 |---|---|
 | **Visualise** | Generate a realistic goal skin image on Day 1 so users know what they're working toward |
-| **Track** | Log daily skin photos per Issue and receive AI-powered analysis scores |
+| **Track** | Log daily skin photos per Track and receive AI-powered analysis scores |
 | **Correlate** | Record AM/PM skincare routines alongside each entry to identify which products are working |
 | **Compare** | Automatically compare today's results against yesterday's to surface meaningful changes |
 | **Understand** | Use Claude to translate raw API scores into plain-language insights |
@@ -30,22 +30,24 @@ The app also surfaces a lightweight **UV Index + SPF recommendation widget** on 
 
 ## ✨ Features
 
-### 📁 Issue Folders
+### 📁 Skin Tracks
 
-Users create an **Issue** to represent a tracking goal:
+Users create a **Track** to represent a tracking goal:
 - A specific skin concern: *"Chin acne cluster"*, *"Forehead wrinkles"*
 - A product trial: *"30 days on Anua Azelaic Acid"*, *"Testing new moisturiser"*
 - A general baseline: *"Monthly skin check"*
 
-Each Issue has:
+Each Track has:
 - A **locked Goal Image** generated on Day 1 (see below)
 - A chronological entry timeline (one photo per day)
+
+**One new track per day** — users can only start one new skin track per day. The limit resets at local midnight. This is enforced in the generating screen before any coin is deducted or DB row created.
 
 ---
 
 ### 🎯 Goal Image (AI Skin Simulation)
 
-When a user creates a new Issue and uploads their **first photo**, the app:
+When a user creates a new Track and uploads their **first photo**, the app:
 
 **Step 1 — User selects skin concerns to target:**
 ```
@@ -73,7 +75,7 @@ Specific concerns selected:
 ```
 
 **Step 3 — Goal Image is locked permanently.**
-The generated image is saved to Supabase Storage and attached to the Issue. It cannot be regenerated or replaced — it acts as the fixed north-star target for the entire tracking journey.
+The generated image is saved to Supabase Storage and attached to the Track. It cannot be regenerated or replaced — it acts as the fixed north-star target for the entire tracking journey.
 
 **What the API does:**
 The AI Skin Simulation API (`POST /s2s/v2.0/task/skin-simulation`) takes the Day 1 photo and renders a photorealistic version of the user's face with the selected skin concerns improved to the specified intensity level. At 0.5, results are natural and plausible rather than over-processed.
@@ -82,18 +84,18 @@ The AI Skin Simulation API (`POST /s2s/v2.0/task/skin-simulation`) takes the Day
 
 ### 🧴 AM / PM Skincare Routine Logging
 
-Each daily entry includes:
+Each **Track** has a single AM and PM routine — the products the user is running for that specific skin goal:
 - **AM Routine**: products applied in the morning (cleanser, vitamin C, SPF, etc.)
 - **PM Routine**: products applied at night (toner, actives, moisturiser, etc.)
 
-Products can be typed freely or selected from a personal product library the user builds over time. Routine data is passed to Claude alongside skin scores for contextual insights:
+Routines are set at the Track level (not per daily entry) because a skincare trial is typically consistent over time. Products are scoped to the Track they belong to. Routine data is passed to Claude alongside skin scores for contextual insights:
 > *"Your moisture improved 8 points since adding the ceramide serum to your PM routine."*
 
 ---
 
 ### 📸 Daily Photo Analysis
 
-- User uploads or captures a selfie within an Issue
+- User uploads or captures a selfie within a Track
 - Photo is sent to **YouCam AI Skin Analysis API (HD mode)**
 - Returns scores across 16 skin dimensions with regional breakdowns
 - Results displayed as scores + visual mask overlays
@@ -102,20 +104,16 @@ Products can be typed freely or selected from a personal product library the use
 
 | Layer | Mechanism |
 |---|---|
-| **UI** | On Issue Detail screen load, the app queries whether today already has an entry. If yes, the `[+ Add Today's Entry]` button is replaced with a disabled state: *"Already logged today — come back tomorrow"* |
+| **UI** | On Track Detail screen load, the app queries whether today already has an entry. If yes, the `[+ Add Today's Entry]` button is replaced with a disabled state: *"Already logged today — come back tomorrow"* |
 | **Database** | `UNIQUE(issue_id, entry_date)` constraint on the `entries` table hard-rejects any duplicate insert as a safety net |
 
 ```typescript
-// Run on Issue Detail screen mount
-const today = new Date().toISOString().split('T')[0] // "YYYY-MM-DD"
-const { data } = await supabase
-  .from('entries')
-  .select('id')
-  .eq('issue_id', issueId)
-  .eq('entry_date', today)
-  .maybeSingle()
+// Build today's date in device local time (never toISOString — that returns UTC)
+const d = new Date()
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const alreadyLoggedToday = !!data  // disables upload button if true
+// alreadyLoggedToday is derived from the entries already fetched for the Track Detail screen
+const alreadyLoggedToday = entries.some(e => e.entry_date === today)
 ```
 
 ---
@@ -139,7 +137,7 @@ Raw YouCam scores + delta + AM/PM routine → Claude generates a 2–4 sentence 
 
 ### 📤 Export for Dermatologist
 
-Users select specific entries (e.g., Monday–Friday of week 1 + the following Thursday) and export as a **PDF** for dermatologist review.
+Users select specific entries from a Track (e.g., Monday–Friday of week 1 + the following Thursday) and export as a **PDF** for dermatologist review.
 
 **Chronological ordering is enforced regardless of selection order** — entries are always sorted by `entry_date` ascending (oldest → newest) before PDF generation. This ensures the dermatologist reads the skin progression in the correct chronological direction.
 
@@ -159,12 +157,29 @@ Each entry in the PDF contains:
 
 ---
 
+### 🔐 Account & Sign-In
+
+The app starts anonymously — no sign-up required. Users are prompted to link their account via **Google Sign-In** (Android + iOS) or **Apple Sign-In** (iOS only) before making their first In-App Purchase. Linking upgrades the anonymous session to a permanent identity without changing the user ID, so all existing coins and tracking data carry over seamlessly.
+
+- Sign-In available from Settings → "Sign In & Secure Account"
+- After sign-in, the profile card shows the user's display name / email
+- On reinstall, signing in with the same provider restores the existing account and wallet
+
+### 💰 Coin Wallet & In-App Purchases
+
+Each skin analysis costs **1 coin**. New users get a **2-day free trial** (server-enforced) during which analyses are free.
+
+- Coin balance displayed in Settings → "My Wallet" and on the Wallet screen
+- Top-up packages configured in Supabase (`coin_packages` table) — amounts and badges update instantly without an app release; prices are fetched live from the App Store / Play Store at runtime
+- **Redeem codes** — admin-issued promo codes redeemable from the Wallet screen
+- Coin is deducted server-side before each analysis (atomic SQL function, double-spend protected)
+
 ### ☀️ UV Index + SPF Widget
 
 - Home screen top-right corner
 - UV Index fetched by GPS or manual city input
 - Calculates minimum recommended SPF for today
-- Daily morning push notification
+- Daily morning push notification *(planned — not yet implemented)*
 
 ---
 
@@ -173,7 +188,7 @@ Each entry in the PDF contains:
 See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 
 - **iOS**: Native Liquid Glass design (iOS 26) — no custom palette, follows system design language
-- **Android**: Custom creamy diary palette defined in `DESIGN.md`, implemented via Gluestack UI v2
+- **Android**: Custom creamy diary palette defined in `DESIGN.md`, implemented via React Native StyleSheet
 
 ---
 
@@ -187,40 +202,48 @@ See [`DESIGN.md`](./DESIGN.md) for the full design system reference.
 | Language | TypeScript |
 | Navigation | Expo Router |
 | Animation | react-native-reanimated |
-| Styling | NativeWind (shared utilities) |
+| Styling | React Native StyleSheet |
 | Camera | expo-camera |
-| Notifications | expo-notifications |
+| Notifications | expo-notifications *(planned)* |
 | Location | expo-location (with manual city fallback) |
 | PDF Export | react-native-html-to-pdf |
+| In-App Purchase | react-native-iap (iOS StoreKit + Android Billing) |
+| Google Sign-In | @react-native-google-signin/google-signin |
+| Apple Sign-In | expo-apple-authentication (iOS only) |
 
-**Platform-specific UI** — components are split using `.ios.tsx` / `.android.tsx` file extensions. Metro bundler automatically selects the correct file per platform; no runtime `Platform.OS` checks needed in the component layer.
+**Platform-specific UI** — platform implementations live in dedicated `src/ios/` and `src/android/` source trees. `src/components/` holds thin bridge files (`.ios.tsx` / `.android.tsx`) that re-export from the correct platform folder — Metro dispatches automatically, no runtime `Platform.OS` checks in the component layer.
 
 | Layer | iOS | Android |
 |---|---|---|
-| Design Language | Liquid Glass (iOS 26) | Gluestack UI v2 |
+| Design Language | Liquid Glass (iOS 26) | DESIGN.md warm palette |
 | Blur / Glass | `expo-blur` BlurView | — |
-| Component Library | Custom Liquid Glass components | Gluestack UI v2 |
-| Animation | react-native-reanimated | react-native-reanimated |
+| Styling | Custom Liquid Glass components | React Native StyleSheet |
+| Background | `#F2F2F7` system gray | `#FDF8F3` warm cream |
 
-**Component file structure:**
+**Source tree layout:**
 ```
-components/
-  Card/
-    Card.ios.tsx        ← BlurView + translucent glass
-    Card.android.tsx    ← Gluestack Box
-    Card.types.ts       ← shared Props interface
-  Button/
-    Button.ios.tsx
-    Button.android.tsx
-    Button.types.ts
+src/
+  components/
+    HomeScreen/
+      HomeScreen.ios.tsx        ← iOS implementation (BlurView + Liquid Glass)
+      HomeScreen.android.tsx    ← Android implementation (warm DESIGN.md palette)
+      HomeScreen.d.ts           ← TypeScript type stub (no runtime code)
+  hooks/                        ← shared hooks
+  models/                       ← shared data models
+  utils/                        ← shared utilities
+  services/
+    supabase/
+      supabase.ts
 ```
+
+Platform implementations live directly in the component folder, selected automatically by Metro via `.ios.tsx` / `.android.tsx` file extensions. No `Platform.OS` checks needed in the component layer.
 
 ### Backend / Services
 | Layer | Technology |
 |---|---|
 | Database | **Supabase** (PostgreSQL) |
 | File Storage | Supabase Storage |
-| Auth | Supabase Auth |
+| Auth | Supabase Auth (anonymous sign-in on first launch) |
 | API Proxy | **Supabase Edge Functions** (Deno) |
 | Skin Analysis | Perfect Corp `AI-Skin-Analysis` (HD) |
 | Skin Simulation | Perfect Corp `AI-Skin-Simulation` |
@@ -311,46 +334,62 @@ AI-Skin-Analysis     AI-Skin-Simulation        Claude API
 ## 📱 App Flow
 
 ```
-Tab Bar: Home | Analysis (TBD) | Settings
+Tab Bar: Home | Analysis | Settings
+
+Settings Screen
+├── Profile card (signed-in users only — shows Google/Apple display name)
+├── Sign In & Secure Account (anonymous users only) → EmailGateSheet slide-up
+├── My Wallet: X coins → /wallet
+├── About App / Terms / Privacy Policy
+└── Delete Account
+
+Wallet Screen (/wallet)
+├── Current balance card (coin count + trial badge if in trial)
+├── Top-up packages (prices fetched live from App Store / Play Store)
+│     tap → EmailGateSheet if anonymous, else IAP purchase flow
+├── Redeem Code input → redeem-code Edge Function
+└── Transaction feedback (Alert on success / error)
+
 
 Home Screen
 ├── UV Index Widget (top right) → SPF recommendation
-├── Issue List
-└── [+ New Issue]
+├── Track List
+└── [+ New Track]
 
-New Issue Setup (Day 1 only)
-├── Name the Issue
+New Track Setup (Day 1 only)
+├── Name the Track
 ├── Upload first selfie
 ├── Select skin concerns to target
-│   (default = all 9 concerns selected)
+│   (default = all 10 concerns selected)
 └── [Generate Goal] →
       Parallel API calls:
       ① AI-Skin-Analysis → baseline scores (stored in issues.baseline_scores)
       ② AI-Skin-Simulation → goal image (stored in issues.goal_image_url, locked)
-      → Issue created → navigate to Issue Detail Screen
+      → Track created → navigate to Track Detail Screen
 
-Issue Detail Screen  ← per-issue hub
+Track Detail Screen  ← per-track hub
 ├── Goal Image ↔ Day 1 Photo slider
 │     slide left  → reveals more Goal Image
 │     slide right → reveals more Day 1 photo
 ├── Current Streak
 ├── Improvement metrics summary i.e +12% (skin progress since Day 1)
-├── AM / PM Routine
+├── AM / PM Routine  ← track-level, edit anytime
 ├── Claude summary card
 ├── Entry Timeline (chronological list of past entries)
+│     sort toggle (newest-first by default, tap icon to reverse)
 │     tap entry → Entry Detail Screen
 └── [+ Add Today's Entry]  ← disabled if already logged today
       → opens Add Entry Screen
 
 Add Entry Screen  ← camera / upload flow
 ├── Take / upload selfie
-├── Log AM Routine
-├── Log PM Routine
 └── [Analyse] →
-      Upload → Edge Function → AI-Skin-Analysis
-      Compute delta vs yesterday
-      Edge Function → Claude (summary)
-      Store entry → navigate back to Issue Detail Screen
+      ① check-and-deduct Edge Function (trial check / deduct 1 coin)
+         → if insufficient: Alert "Buy Coins" → /wallet
+      ② Upload → Edge Function → AI-Skin-Analysis
+      ③ Compute delta vs yesterday
+      ④ Edge Function → Claude (summary)
+      ⑤ Store entry → navigate back to Track Detail Screen
 
 Entry Detail Screen  ← single day result
 ├── Original photo (that day)
@@ -358,10 +397,22 @@ Entry Detail Screen  ← single day result
 ├── Score dashboard (all metrics + delta ↑↓)
 └── Claude summary
 
-Export Screen
-├── Select Issue
-├── Multi-select entries
-└── [Export PDF] → share sheet
+Analysis Screen
+├── Day selector: 3 / 5 / 10 days (slices most recent N unique-date entries)
+├── Skin Score Trend card
+│     LineChart of overall score (all.score) per day
+│     Tap / drag → vertical strip pointer with score + date tooltip
+│     Animated on mount and on day-selector change
+│     Avg. score displayed in card header
+├── Skin Concerns grid (2-column)
+│     6 common concerns: Moisture, Redness, Pores, Texture, Acne, Oiliness
+│     Status label derived from latest entry score (≥80 / 65–79 / <65 tiers)
+│     Trend arrow: ↗ improved / ↘ worsened / → stable vs. first displayed entry
+│     Score bar proportional to metric value
+└── [Export PDF Report] → generates clinical PDF (see PDF export)
+
+Export (via Analysis screen)
+└── [Export PDF Report] → share sheet (iOS: in-app viewer + share; Android: system PDF app)
 ```
 
 ---
@@ -378,13 +429,20 @@ npx expo start
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_KEY=your-publishable-key
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID (Google Cloud Console)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # Google OAuth iOS client ID (for native sign-in flow)
 ```
 
 ### Supabase Edge Function Secrets (server-side only)
 ```
 YOUCAM_API_KEY=your-youcam-key
 ANTHROPIC_API_KEY=your-claude-key
+APPLE_SHARED_SECRET=           # App Store Connect → In-App Purchases → App-Specific Shared Secret
+GOOGLE_SERVICE_ACCOUNT_JSON=   # Google Play Console → Setup → API access → service account JSON key
+ANDROID_PACKAGE_NAME=          # e.g. com.perfectskindiary.app
 ```
+
+> **EAS Build required** — Google Sign-In and IAP use native modules (`@react-native-google-signin/google-signin`, `react-native-iap`) that are incompatible with Expo Go. Use `eas build --profile preview` for development builds on device.
 
 ---
 
@@ -403,7 +461,7 @@ ANTHROPIC_API_KEY=your-claude-key
 - Goal Image gives users a concrete, photorealistic target — not just abstract scores
 - AM/PM routine correlation creates a feedback loop between products and measurable skin results
 - Export feature creates genuine clinical utility for dermatologist consultations
-- Three Perfect Corp APIs used in distinct, meaningful ways
+- Three Perfect Corp APIs used in distinct, meaningful ways across the Track lifecycle
 - Clear monetisation pathway: freemium subscriptions + skincare brand affiliate recommendations
 
 ---

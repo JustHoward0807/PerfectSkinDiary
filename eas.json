@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "environment": "preview",
+      "ios": {
+        "distribution": "internal"
+      }
+    },
+    "production": {
+      "environment": "production",
+      "autoIncrement": true,
+      "ios": {
+        "distribution": "store"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "howardongdev0807@gmail.com",
+        "ascAppId": "6775948753",
+        "appleTeamId": "RFRYGULZBC"
+      }
+    }
+  }
+}

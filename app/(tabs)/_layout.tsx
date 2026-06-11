@@ -1,9 +1,24 @@
+import { Platform } from 'react-native';
 import { NativeTabs, Icon, Label, VectorIcon } from 'expo-router/unstable-native-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+const androidTabProps = Platform.select({
+  android: {
+    backgroundColor: '#FDF8F3',
+    iconColor: { default: '#6B5A53', selected: '#7D5A4F' },
+    labelStyle: {
+      default: { color: '#6B5A53' as const },
+      selected: { color: '#7D5A4F' as const },
+    },
+    indicatorColor: '#F5EDE3',
+    rippleColor: 'rgba(125, 90, 79, 0.12)',
+  },
+  default: {},
+});
+
 export default function TabLayout() {
   return (
-    <NativeTabs>
+    <NativeTabs {...androidTabProps}>
       <NativeTabs.Trigger name="index">
         <Icon
           sf={{ default: 'house', selected: 'house.fill' }}
